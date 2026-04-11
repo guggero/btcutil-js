@@ -74,6 +74,16 @@ await init(fetch('/assets/btcutil.wasm'));
 
 ## API
 
+[See full API docs here, generated with `typedoc`](https://guggero.github.io/btcutil-js/).
+
+The corresponding Go library this project wraps with WASM is documented here:
+- [btcd/btcec](https://pkg.go.dev/github.com/btcsuite/btcd/btcec/v2)
+- [btcd/btcutil](https://pkg.go.dev/github.com/btcsuite/btcd/btcutil)
+- [btcd/btcutil/psbt](https://pkg.go.dev/github.com/btcsuite/btcd/btcutil/psbt)
+- [btcd/chaincfg](https://pkg.go.dev/github.com/btcsuite/btcd@v0.25.0/chaincfg)
+- [btcd/chaincfg/chainash](https://pkg.go.dev/github.com/btcsuite/btcd/chaincfg/chainhash)
+- [btcd/txscript](https://pkg.go.dev/github.com/btcsuite/btcd@v0.25.0/txscript)
+
 All functions are **async** (they ensure the WASM module is loaded on first
 call). Byte data is represented as **hex strings** throughout. Network
 parameters accept `"mainnet"` (default), `"testnet"` / `"testnet3"`,
