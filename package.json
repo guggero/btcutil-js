@@ -1,6 +1,6 @@
 {
   "name": "btcutil-js",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bitcoin utility library (btcutil) for JavaScript/TypeScript via WebAssembly",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -26,9 +26,10 @@
     "build:wasm": "./build-wrapper.sh",
     "build:js": "npm run generate:wasm-exec && tsup && cp wasm-wrapper/btcutil.wasm dist/",
     "build": "npm run build:wasm && npm run build:js",
+    "build:checksums": "./scripts/checksums.sh",
     "build:docs": "typedoc",
     "test": "node --test test/*.test.mjs",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build && npm run build:checksums"
   },
   "keywords": [
     "bitcoin",
