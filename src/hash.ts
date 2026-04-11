@@ -1,0 +1,11 @@
+import { init, g, unwrap } from './init';
+
+/** Cryptographic hash functions. */
+export const hash = {
+  /** Compute RIPEMD160(SHA256(data)). Input and output are hex.
+   *  Calls Go: btcutil.Hash160() from btcutil. */
+  async hash160(hexData: string): Promise<string> {
+    await init();
+    return unwrap<string>(g().hash.hash160(hexData));
+  },
+};
