@@ -53,6 +53,47 @@ const addr = await address.fromWitnessPubKeyHash(pkHash);
 console.log(addr); // bc1q…
 ```
 
+### Synchronous API
+
+Every namespace method is `async` by default because it lazily initializes
+the WASM module on first call. If you prefer synchronous calls, call `init()`
+once and use the returned object — all methods on it are sync:
+
+```typescript
+import { init } from 'btcutil-js';
+
+const btcutil = await init();
+
+// Everything below is synchronous — no await needed.
+const seed = btcutil.hdkeychain.generateSeed();
+const master = btcutil.hdkeychain.newMaster(seed);
+const child = btcutil.hdkeychain.derivePath(master, "m/84'/0'/0'/0/0");
+const pubKey = btcutil.hdkeychain.publicKey(child);
+const pkHash = btcutil.hash.hash160(pubKey);
+const addr = btcutil.address.fromWitnessPubKeyHash(pkHash);
+console.log(addr); // bc1q…
+
+// Signing is sync too.
+const kp = btcutil.btcec.newPrivateKey();
+const msgHash = btcutil.chainhash.doubleHash('68656c6c6f');
+const sig = btcutil.btcec.schnorrSign(kp.privateKey, msgHash);
+const valid = btcutil.btcec.schnorrVerify(
+  btcutil.btcec.schnorrSerializePubKey(kp.publicKey), msgHash, sig,
+);
+console.log(valid); // true
+
+// Errors throw synchronously.
+try {
+  btcutil.address.decode('not-an-address');
+} catch (e) {
+  console.error(e.message);
+}
+```
+
+The sync API has the same namespaces and method signatures as the async one,
+just without `Promise<>` wrappers. TypeScript provides full autocompletion and
+type checking via the `BtcutilSync` type.
+
 ### Custom WASM loading
 
 You can pre-initialize the WASM module with a custom source by calling `init`

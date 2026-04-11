@@ -1,4 +1,5 @@
 export { init } from './init';
+export type { BtcutilSync } from './init';
 export type * from './types';
 export { base58 } from './base58';
 export { bech32 } from './bech32';
