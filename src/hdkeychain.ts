@@ -1,13 +1,13 @@
 import { init, g, unwrap } from './init';
-import type { ExtendedKeyInfo, Network } from './types';
+import type { Bytes, ExtendedKeyInfo, Network } from './types';
 
 /** BIP-32 hierarchical deterministic key derivation. */
 export const hdkeychain = {
   /** Create a master extended key from a seed (hex).
    *  Calls Go: hdkeychain.NewMaster() from btcutil/hdkeychain. */
-  async newMaster(hexSeed: string, network: Network = 'mainnet'): Promise<string> {
+  async newMaster(seed: Bytes, network: Network = 'mainnet'): Promise<string> {
     await init();
-    return unwrap<string>(g().hdkeychain.newMaster(hexSeed, network));
+    return unwrap<string>(g().hdkeychain.newMaster(seed, network));
   },
 
   /** Parse an extended key string (xprv/xpub/tprv/tpub) and return info.

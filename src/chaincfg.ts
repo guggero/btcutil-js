@@ -1,5 +1,5 @@
 import { init, g, unwrap } from './init';
-import type { Network } from './types';
+import type { Bytes, Network } from './types';
 
 export interface ChainParams {
   name: string;
@@ -43,8 +43,8 @@ export const chaincfg = {
   },
   /** Convert an HD private key version to its public counterpart.
    *  Calls Go: chaincfg.HDPrivateKeyToPublicKeyID() from btcd/chaincfg. */
-  async hdPrivateKeyToPublicKeyID(hexPrivateKeyID: string): Promise<Uint8Array> {
+  async hdPrivateKeyToPublicKeyID(privateKeyID: Bytes): Promise<Uint8Array> {
     await init();
-    return unwrap<Uint8Array>(g().chaincfg.hdPrivateKeyToPublicKeyID(hexPrivateKeyID));
+    return unwrap<Uint8Array>(g().chaincfg.hdPrivateKeyToPublicKeyID(privateKeyID));
   },
 };

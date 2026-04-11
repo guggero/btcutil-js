@@ -12,7 +12,7 @@ func bech32Encode(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 2, "hrp, hexData5bit"); e != nil {
 		return e
 	}
-	data, e := hexDecode(args[1].String())
+	data, e := bytesFromArg(args[1])
 	if e != nil {
 		return e
 	}
@@ -27,7 +27,7 @@ func bech32EncodeM(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 2, "hrp, hexData5bit"); e != nil {
 		return e
 	}
-	data, e := hexDecode(args[1].String())
+	data, e := bytesFromArg(args[1])
 	if e != nil {
 		return e
 	}
@@ -70,7 +70,7 @@ func bech32EncodeFromBase256(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 2, "hrp, hexData"); e != nil {
 		return e
 	}
-	data, e := hexDecode(args[1].String())
+	data, e := bytesFromArg(args[1])
 	if e != nil {
 		return e
 	}
@@ -99,7 +99,7 @@ func bech32ConvertBits(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 4, "hexData, fromBits, toBits, pad"); e != nil {
 		return e
 	}
-	data, e := hexDecode(args[0].String())
+	data, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}

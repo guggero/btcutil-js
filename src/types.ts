@@ -1,3 +1,6 @@
+/** Byte data: hex-encoded string or raw Uint8Array. */
+export type Bytes = string | Uint8Array;
+
 export interface Base58CheckDecodeResult {
   data: Uint8Array;
   version: number;

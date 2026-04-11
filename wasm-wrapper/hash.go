@@ -12,7 +12,7 @@ func hashHash160(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexData"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}

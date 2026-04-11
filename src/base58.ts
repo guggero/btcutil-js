@@ -1,13 +1,13 @@
 import { init, g, unwrap } from './init';
-import type { Base58CheckDecodeResult } from './types';
+import type { Base58CheckDecodeResult, Bytes } from './types';
 
 /** Base58 encoding and decoding (with and without check). */
 export const base58 = {
   /** Encode bytes (hex) to a base58 string.
    *  Calls Go: base58.Encode() from btcutil/base58. */
-  async encode(hexData: string): Promise<string> {
+  async encode(data: Bytes): Promise<string> {
     await init();
-    return unwrap<string>(g().base58.encode(hexData));
+    return unwrap<string>(g().base58.encode(data));
   },
 
   /** Decode a base58 string to bytes (hex).
@@ -19,9 +19,9 @@ export const base58 = {
 
   /** Encode bytes (hex) with a version byte and checksum.
    *  Calls Go: base58.CheckEncode() from btcutil/base58. */
-  async checkEncode(hexData: string, version: number): Promise<string> {
+  async checkEncode(data: Bytes, version: number): Promise<string> {
     await init();
-    return unwrap<string>(g().base58.checkEncode(hexData, version));
+    return unwrap<string>(g().base58.checkEncode(data, version));
   },
 
   /** Decode a base58check string, verifying the checksum.

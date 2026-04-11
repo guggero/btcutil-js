@@ -1,5 +1,5 @@
 import { init, g, unwrap } from './init';
-import type { PsbtDecodeResult } from './types';
+import type { Bytes, PsbtDecodeResult } from './types';
 
 /** Partially Signed Bitcoin Transaction (BIP-174) utilities. */
 export const psbt = {
@@ -40,8 +40,8 @@ export const psbt = {
 
   /** Convert raw PSBT bytes (hex) to a base64-encoded string.
    *  Calls Go: psbt.NewFromRawBytes() + psbt.Packet.B64Encode() from btcutil/psbt. */
-  async toBase64(hexPsbt: string): Promise<string> {
+  async toBase64(psbtData: Bytes): Promise<string> {
     await init();
-    return unwrap<string>(g().psbt.toBase64(hexPsbt));
+    return unwrap<string>(g().psbt.toBase64(psbtData));
   },
 };

@@ -1,5 +1,5 @@
 import { init, g, unwrap } from './init';
-import type { GcsFilterResult } from './types';
+import type { Bytes, GcsFilterResult } from './types';
 
 /** Golomb-Coded Set (GCS) filter utilities (BIP-158 compact block filters). */
 export const gcs = {
@@ -7,49 +7,49 @@ export const gcs = {
    *  Calls Go: gcs.BuildGCSFilter() from btcutil/gcs.
    *  @param p - Filter parameter P (false positive rate = 1/2^P).
    *  @param m - Filter parameter M.
-   *  @param hexKey - 16-byte SipHash key (hex, 32 chars).
-   *  @param hexDataItems - Array of data items (hex strings). */
+   *  @param key - 16-byte SipHash key (hex, 32 chars).
+   *  @param dataItems - Array of data items (hex strings). */
   async buildFilter(
     p: number,
     m: number,
-    hexKey: string,
-    hexDataItems: string[],
+    key: Bytes,
+    dataItems: Bytes[],
   ): Promise<GcsFilterResult> {
     await init();
     return unwrap<GcsFilterResult>(
-      g().gcs.buildFilter(p, m, hexKey, hexDataItems),
+      g().gcs.buildFilter(p, m, key, dataItems),
     );
   },
 
   /** Test if a single element matches the filter.
    *  Calls Go: gcs.Filter.Match() from btcutil/gcs (via gcs.FromBytes()). */
   async match(
-    hexFilter: string,
+    filter: Bytes,
     n: number,
     p: number,
     m: number,
-    hexKey: string,
-    hexTarget: string,
+    key: Bytes,
+    target: Bytes,
   ): Promise<boolean> {
     await init();
     return unwrap<boolean>(
-      g().gcs.match(hexFilter, n, p, m, hexKey, hexTarget),
+      g().gcs.match(filter, n, p, m, key, target),
     );
   },
 
   /** Test if any of the target elements match the filter.
    *  Calls Go: gcs.Filter.MatchAny() from btcutil/gcs (via gcs.FromBytes()). */
   async matchAny(
-    hexFilter: string,
+    filter: Bytes,
     n: number,
     p: number,
     m: number,
-    hexKey: string,
-    hexTargets: string[],
+    key: Bytes,
+    targets: Bytes[],
   ): Promise<boolean> {
     await init();
     return unwrap<boolean>(
-      g().gcs.matchAny(hexFilter, n, p, m, hexKey, hexTargets),
+      g().gcs.matchAny(filter, n, p, m, key, targets),
     );
   },
 };

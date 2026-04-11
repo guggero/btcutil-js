@@ -1,5 +1,5 @@
 import { init, g, unwrap } from './init';
-import type { WifDecodeResult, Network } from './types';
+import type { Bytes, WifDecodeResult, Network } from './types';
 
 /** Wallet Import Format encoding and decoding. */
 export const wif = {
@@ -14,13 +14,13 @@ export const wif = {
    *  Calls Go: btcutil.NewWIF() from btcutil (via btcec.PrivKeyFromBytes()).
    *  @param compress - Whether to use compressed public key (default: true). */
   async encode(
-    hexPrivateKey: string,
+    privateKey: Bytes,
     network: Network = 'mainnet',
     compress: boolean = true,
   ): Promise<string> {
     await init();
     return unwrap<string>(
-      g().wif.encode(hexPrivateKey, network, compress),
+      g().wif.encode(privateKey, network, compress),
     );
   },
 };

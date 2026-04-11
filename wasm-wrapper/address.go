@@ -62,7 +62,7 @@ func addressFromPubKeyHash(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexHash"); e != nil {
 		return e
 	}
-	hash, e := hexDecode(args[0].String())
+	hash, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -81,7 +81,7 @@ func addressFromScriptHash(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexHash"); e != nil {
 		return e
 	}
-	hash, e := hexDecode(args[0].String())
+	hash, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -100,7 +100,7 @@ func addressFromScript(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	script, e := hexDecode(args[0].String())
+	script, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -119,7 +119,7 @@ func addressFromWitnessPubKeyHash(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexProgram"); e != nil {
 		return e
 	}
-	prog, e := hexDecode(args[0].String())
+	prog, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -138,7 +138,7 @@ func addressFromWitnessScriptHash(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexProgram"); e != nil {
 		return e
 	}
-	prog, e := hexDecode(args[0].String())
+	prog, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -157,7 +157,7 @@ func addressFromTaproot(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexProgram"); e != nil {
 		return e
 	}
-	prog, e := hexDecode(args[0].String())
+	prog, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -176,7 +176,7 @@ func addressFromPubKey(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexPubKey"); e != nil {
 		return e
 	}
-	pub, e := hexDecode(args[0].String())
+	pub, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}

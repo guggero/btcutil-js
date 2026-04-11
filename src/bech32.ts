@@ -1,20 +1,20 @@
 import { init, g, unwrap } from './init';
-import type { Bech32DecodeResult } from './types';
+import type { Bech32DecodeResult, Bytes } from './types';
 
 /** Bech32 and bech32m encoding/decoding. */
 export const bech32 = {
   /** Bech32-encode 5-bit data (hex) with the given HRP.
    *  Calls Go: bech32.Encode() from btcutil/bech32. */
-  async encode(hrp: string, hexData5bit: string): Promise<string> {
+  async encode(hrp: string, data5bit: Bytes): Promise<string> {
     await init();
-    return unwrap<string>(g().bech32.encode(hrp, hexData5bit));
+    return unwrap<string>(g().bech32.encode(hrp, data5bit));
   },
 
   /** Bech32m-encode 5-bit data (hex) with the given HRP.
    *  Calls Go: bech32.EncodeM() from btcutil/bech32. */
-  async encodeM(hrp: string, hexData5bit: string): Promise<string> {
+  async encodeM(hrp: string, data5bit: Bytes): Promise<string> {
     await init();
-    return unwrap<string>(g().bech32.encodeM(hrp, hexData5bit));
+    return unwrap<string>(g().bech32.encodeM(hrp, data5bit));
   },
 
   /** Decode a bech32 string (90-char limit). Returns 5-bit data.
@@ -33,9 +33,9 @@ export const bech32 = {
 
   /** Encode base-256 data (hex) as a bech32 string. Handles 8->5 bit conversion.
    *  Calls Go: bech32.EncodeFromBase256() from btcutil/bech32. */
-  async encodeFromBase256(hrp: string, hexData: string): Promise<string> {
+  async encodeFromBase256(hrp: string, data: Bytes): Promise<string> {
     await init();
-    return unwrap<string>(g().bech32.encodeFromBase256(hrp, hexData));
+    return unwrap<string>(g().bech32.encodeFromBase256(hrp, data));
   },
 
   /** Decode a bech32 string to base-256 data (hex). Handles 5->8 bit conversion.
@@ -48,14 +48,14 @@ export const bech32 = {
   /** Convert between bit groups (e.g. 8->5 or 5->8).
    *  Calls Go: bech32.ConvertBits() from btcutil/bech32. */
   async convertBits(
-    hexData: string,
+    data: Bytes,
     fromBits: number,
     toBits: number,
     pad: boolean,
   ): Promise<Uint8Array> {
     await init();
     return unwrap<Uint8Array>(
-      g().bech32.convertBits(hexData, fromBits, toBits, pad),
+      g().bech32.convertBits(data, fromBits, toBits, pad),
     );
   },
 };

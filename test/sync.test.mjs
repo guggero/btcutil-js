@@ -1,5 +1,5 @@
 import './setup.mjs';
-import { describe, it } from 'node:test';
+import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { init } from '../dist/index.js';
 import { toHex } from './util.mjs';
@@ -219,5 +219,98 @@ describe('sync API', () => {
     assert.throws(() => lib.base58.encode('zzzz'));
     assert.throws(() => lib.address.decode('not-an-address'));
     assert.throws(() => lib.btcec.pubKeyFromBytes('0000'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Uint8Array input tests — verify bytesFromArg accepts raw bytes
+// ---------------------------------------------------------------------------
+
+describe('Uint8Array inputs', () => {
+  let lib;
+  before(async () => { lib = await init(); });
+
+  it('hash.hash160 accepts Uint8Array', () => {
+    const data = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
+    const fromBytes = lib.hash.hash160(data);
+    const fromHex = lib.hash.hash160('deadbeef');
+    assert.deepEqual(fromBytes, fromHex);
+  });
+
+  it('base58.encode accepts Uint8Array', () => {
+    const data = new Uint8Array([0x04, 0x88, 0xad, 0xe4]);
+    const fromBytes = lib.base58.encode(data);
+    const fromHex = lib.base58.encode('0488ade4');
+    assert.equal(fromBytes, fromHex);
+  });
+
+  it('chainhash.doubleHash accepts Uint8Array', () => {
+    const data = new Uint8Array([0x68, 0x65, 0x6c, 0x6c, 0x6f]); // "hello"
+    const fromBytes = lib.chainhash.doubleHash(data);
+    const fromHex = lib.chainhash.doubleHash('68656c6c6f');
+    assert.deepEqual(fromBytes, fromHex);
+  });
+
+  it('address.fromWitnessPubKeyHash accepts Uint8Array', () => {
+    const program = new Uint8Array([
+      0x75, 0x1e, 0x76, 0xe8, 0x19, 0x91, 0x96, 0xd4, 0x54, 0x94,
+      0x1c, 0x45, 0xd1, 0xb3, 0xa3, 0x23, 0xf1, 0x43, 0x3b, 0xd6,
+    ]);
+    const fromBytes = lib.address.fromWitnessPubKeyHash(program);
+    const fromHex = lib.address.fromWitnessPubKeyHash('751e76e8199196d454941c45d1b3a323f1433bd6');
+    assert.equal(fromBytes, fromHex);
+  });
+
+  it('btcec.ecdsaSign accepts Uint8Array key and hash', () => {
+    const kp = lib.btcec.newPrivateKey();
+    const msgHash = lib.chainhash.doubleHash('aa');
+    // Sign with raw Uint8Array inputs (no toHex conversion)
+    const sig = lib.btcec.ecdsaSign(kp.privateKey, msgHash);
+    assert.ok(sig instanceof Uint8Array);
+    assert.ok(sig.length > 0);
+    // Verify with raw Uint8Array inputs
+    const valid = lib.btcec.ecdsaVerify(kp.publicKey, msgHash, sig);
+    assert.equal(valid, true);
+  });
+
+  it('btcec.schnorrSign accepts Uint8Array key and hash', () => {
+    const kp = lib.btcec.newPrivateKey();
+    const msgHash = lib.chainhash.doubleHash('bb');
+    const sig = lib.btcec.schnorrSign(kp.privateKey, msgHash);
+    const xOnly = lib.btcec.schnorrSerializePubKey(kp.publicKey);
+    assert.equal(lib.btcec.schnorrVerify(xOnly, msgHash, sig), true);
+  });
+
+  it('txscript.isPayToWitnessPubKeyHash accepts Uint8Array', () => {
+    const script = new Uint8Array([
+      0x00, 0x14, 0x75, 0x1e, 0x76, 0xe8, 0x19, 0x91, 0x96, 0xd4,
+      0x54, 0x94, 0x1c, 0x45, 0xd1, 0xb3, 0xa3, 0x23, 0xf1, 0x43,
+      0x3b, 0xd6,
+    ]);
+    assert.equal(lib.txscript.isPayToWitnessPubKeyHash(script), true);
+  });
+
+  it('gcs.buildFilter accepts Uint8Array key and items', () => {
+    const key = new Uint8Array(16).fill(0x42);
+    const items = [
+      new Uint8Array([0xde, 0xad]),
+      new Uint8Array([0xbe, 0xef]),
+    ];
+    const result = lib.gcs.buildFilter(20, 1 << 20, key, items);
+    assert.equal(result.n, 2);
+    assert.ok(result.filter instanceof Uint8Array);
+    // Match with Uint8Array target
+    assert.equal(lib.gcs.match(result.filter, result.n, 20, 1 << 20, key, new Uint8Array([0xde, 0xad])), true);
+    assert.equal(lib.gcs.match(result.filter, result.n, 20, 1 << 20, key, new Uint8Array([0xff, 0xff])), false);
+  });
+
+  it('full Uint8Array pipeline: generate key, hash, create address', () => {
+    const seed = lib.hdkeychain.generateSeed(); // returns Uint8Array
+    const master = lib.hdkeychain.newMaster(seed); // accepts Uint8Array
+    const child = lib.hdkeychain.derivePath(master, "m/84'/0'/0'/0/0");
+    const pubKey = lib.hdkeychain.publicKey(child); // returns Uint8Array
+    const pkHash = lib.hash.hash160(pubKey); // accepts & returns Uint8Array
+    const addr = lib.address.fromWitnessPubKeyHash(pkHash); // accepts Uint8Array
+    assert.ok(addr.startsWith('bc1q'));
   });
 });

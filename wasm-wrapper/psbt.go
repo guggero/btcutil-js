@@ -122,7 +122,7 @@ func psbtToBase64(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexPsbt"); e != nil {
 		return e
 	}
-	raw, e := hexDecode(args[0].String())
+	raw, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}

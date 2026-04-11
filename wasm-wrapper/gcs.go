@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"syscall/js"
 
 	"github.com/btcsuite/btcd/btcutil/gcs"
@@ -16,7 +15,7 @@ func gcsBuildFilter(_ js.Value, args []js.Value) any {
 	p := uint8(args[0].Int())
 	m := uint64(args[1].Float())
 
-	keyBytes, e := hexDecode(args[2].String())
+	keyBytes, e := bytesFromArg(args[2])
 	if e != nil {
 		return e
 	}
@@ -31,9 +30,9 @@ func gcsBuildFilter(_ js.Value, args []js.Value) any {
 	dataLen := args[3].Length()
 	data := make([][]byte, dataLen)
 	for i := 0; i < dataLen; i++ {
-		item, err := hex.DecodeString(args[3].Index(i).String())
-		if err != nil {
-			return errfResult("invalid hex item[%d]: %s", i, err)
+		item, e := bytesFromArg(args[3].Index(i))
+		if e != nil {
+			return e
 		}
 		data[i] = item
 	}
@@ -61,7 +60,7 @@ func gcsMatch(_ js.Value, args []js.Value) any {
 		return e
 	}
 
-	filterBytes, e := hexDecode(args[0].String())
+	filterBytes, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -69,14 +68,14 @@ func gcsMatch(_ js.Value, args []js.Value) any {
 	p := uint8(args[2].Int())
 	m := uint64(args[3].Float())
 
-	keyBytes, e := hexDecode(args[4].String())
+	keyBytes, e := bytesFromArg(args[4])
 	if e != nil {
 		return e
 	}
 	var key [gcs.KeySize]byte
 	copy(key[:], keyBytes)
 
-	target, e := hexDecode(args[5].String())
+	target, e := bytesFromArg(args[5])
 	if e != nil {
 		return e
 	}
@@ -100,7 +99,7 @@ func gcsMatchAny(_ js.Value, args []js.Value) any {
 		return e
 	}
 
-	filterBytes, e := hexDecode(args[0].String())
+	filterBytes, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -108,7 +107,7 @@ func gcsMatchAny(_ js.Value, args []js.Value) any {
 	p := uint8(args[2].Int())
 	m := uint64(args[3].Float())
 
-	keyBytes, e := hexDecode(args[4].String())
+	keyBytes, e := bytesFromArg(args[4])
 	if e != nil {
 		return e
 	}
@@ -118,9 +117,9 @@ func gcsMatchAny(_ js.Value, args []js.Value) any {
 	targetsLen := args[5].Length()
 	targets := make([][]byte, targetsLen)
 	for i := 0; i < targetsLen; i++ {
-		t, err := hex.DecodeString(args[5].Index(i).String())
-		if err != nil {
-			return errfResult("invalid hex target[%d]: %s", i, err)
+		t, e := bytesFromArg(args[5].Index(i))
+		if e != nil {
+			return e
 		}
 		targets[i] = t
 	}

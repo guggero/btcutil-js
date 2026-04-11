@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"syscall/js"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -17,18 +16,16 @@ import (
 // helpers
 // ---------------------------------------------------------------------------
 
-func buildPrevOutFetcher(
-	msgTx *wire.MsgTx, prevOutsArg js.Value,
-) (*txscript.MultiPrevOutFetcher, map[string]any) {
+func buildPrevOutFetcher(msgTx *wire.MsgTx,
+	prevOutsArg js.Value) (*txscript.MultiPrevOutFetcher, map[string]any) {
 
 	n := prevOutsArg.Length()
 	prevOuts := make(map[wire.OutPoint]*wire.TxOut, n)
 	for i := 0; i < n && i < len(msgTx.TxIn); i++ {
 		entry := prevOutsArg.Index(i)
-		script, err := hex.DecodeString(entry.Get("script").String())
-		if err != nil {
-			return nil, errfResult("invalid prevOut script[%d]: %s",
-				i, err)
+		script, e := bytesFromArg(entry.Get("script"))
+		if e != nil {
+			return nil, e
 		}
 		amt := int64(entry.Get("amount").Float())
 		prevOuts[msgTx.TxIn[i].PreviousOutPoint] = &wire.TxOut{
@@ -47,7 +44,7 @@ func txscriptIsPayToPubKey(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -58,7 +55,7 @@ func txscriptIsPayToPubKeyHash(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -69,7 +66,7 @@ func txscriptIsPayToScriptHash(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -80,7 +77,7 @@ func txscriptIsPayToWitnessPubKeyHash(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -91,7 +88,7 @@ func txscriptIsPayToWitnessScriptHash(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -102,7 +99,7 @@ func txscriptIsPayToTaproot(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -113,7 +110,7 @@ func txscriptIsWitnessProgram(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -124,7 +121,7 @@ func txscriptIsNullData(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -135,7 +132,7 @@ func txscriptIsMultisigScript(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -150,7 +147,7 @@ func txscriptIsUnspendable(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -161,7 +158,7 @@ func txscriptIsPushOnlyScript(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -172,7 +169,7 @@ func txscriptScriptHasOpSuccess(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -187,7 +184,7 @@ func txscriptDisasmString(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -202,7 +199,7 @@ func txscriptGetScriptClass(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -213,7 +210,7 @@ func txscriptExtractWitnessProgramInfo(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -231,7 +228,7 @@ func txscriptExtractPkScriptAddrs(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -258,7 +255,7 @@ func txscriptPushedData(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -277,7 +274,7 @@ func txscriptGetSigOpCount(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -288,7 +285,7 @@ func txscriptCalcMultiSigStats(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -306,7 +303,7 @@ func txscriptParsePkScript(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexScript"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -334,7 +331,7 @@ func txscriptComputePkScript(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 2, "hexSigScript, hexWitness[]"); e != nil {
 		return e
 	}
-	sigScript, e := hexDecode(args[0].String())
+	sigScript, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -342,9 +339,9 @@ func txscriptComputePkScript(_ js.Value, args []js.Value) any {
 	witnessLen := args[1].Length()
 	witness := make(wire.TxWitness, witnessLen)
 	for i := 0; i < witnessLen; i++ {
-		w, err := hex.DecodeString(args[1].Index(i).String())
-		if err != nil {
-			return errfResult("invalid witness[%d]: %s", i, err)
+		w, e := bytesFromArg(args[1].Index(i))
+		if e != nil {
+			return e
 		}
 		witness[i] = w
 	}
@@ -396,7 +393,7 @@ func txscriptNullDataScript(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexData"); e != nil {
 		return e
 	}
-	data, e := hexDecode(args[0].String())
+	data, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -411,7 +408,7 @@ func txscriptPayToTaprootScript(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexPubKey"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -441,9 +438,9 @@ func txscriptMultiSigScript(_ js.Value, args []js.Value) any {
 	n := args[0].Length()
 	pubkeys := make([]*btcutil.AddressPubKey, n)
 	for i := 0; i < n; i++ {
-		b, err := hex.DecodeString(args[0].Index(i).String())
-		if err != nil {
-			return errfResult("invalid pubkey[%d]: %s", i, err)
+		b, e := bytesFromArg(args[0].Index(i))
+		if e != nil {
+			return e
 		}
 		addr, err := btcutil.NewAddressPubKey(b, params)
 		if err != nil {
@@ -468,7 +465,7 @@ func txscriptComputeTaprootOutputKey(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexInternalKey"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -484,7 +481,7 @@ func txscriptComputeTaprootOutputKey(_ js.Value, args []js.Value) any {
 	if len(args) > 1 && args[1].Type() == js.TypeString &&
 		args[1].String() != "" {
 
-		scriptRoot, e = hexDecode(args[1].String())
+		scriptRoot, e = bytesFromArg(args[1])
 		if e != nil {
 			return e
 		}
@@ -498,7 +495,7 @@ func txscriptComputeTaprootKeyNoScript(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexInternalKey"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -517,7 +514,7 @@ func txscriptTweakTaprootPrivKey(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexPrivKey"); e != nil {
 		return e
 	}
-	privBytes, e := hexDecode(args[0].String())
+	privBytes, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -527,7 +524,7 @@ func txscriptTweakTaprootPrivKey(_ js.Value, args []js.Value) any {
 	if len(args) > 1 && args[1].Type() == js.TypeString &&
 		args[1].String() != "" {
 
-		scriptRoot, e = hexDecode(args[1].String())
+		scriptRoot, e = bytesFromArg(args[1])
 		if e != nil {
 			return e
 		}
@@ -541,7 +538,7 @@ func txscriptParseControlBlock(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexControlBlock"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -561,7 +558,7 @@ func txscriptAssembleTaprootScriptTree(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 2, "hexInternalKey, leaves[]"); e != nil {
 		return e
 	}
-	ikBytes, e := hexDecode(args[0].String())
+	ikBytes, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -577,9 +574,9 @@ func txscriptAssembleTaprootScriptTree(_ js.Value, args []js.Value) any {
 	leaves := make([]txscript.TapLeaf, n)
 	for i := 0; i < n; i++ {
 		entry := args[1].Index(i)
-		script, err := hex.DecodeString(entry.Get("script").String())
-		if err != nil {
-			return errfResult("invalid leaf script[%d]: %s", i, err)
+		script, e := bytesFromArg(entry.Get("script"))
+		if e != nil {
+			return e
 		}
 		ver := txscript.BaseLeafVersion
 		if v := entry.Get("version"); v.Type() == js.TypeNumber {
@@ -627,7 +624,7 @@ func txscriptCalcSignatureHash(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 4, "hexScript, hashType, hexRawTx, idx"); e != nil {
 		return e
 	}
-	script, e := hexDecode(args[0].String())
+	script, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -650,7 +647,7 @@ func txscriptCalcWitnessSigHash(_ js.Value, args []js.Value) any {
 		"hexScript, hashType, hexRawTx, idx, amount"); e != nil {
 		return e
 	}
-	script, e := hexDecode(args[0].String())
+	script, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -715,12 +712,12 @@ func txscriptRawTxInSignature(_ js.Value, args []js.Value) any {
 		return e
 	}
 	idx := args[1].Int()
-	subScript, e := hexDecode(args[2].String())
+	subScript, e := bytesFromArg(args[2])
 	if e != nil {
 		return e
 	}
 	hashType := txscript.SigHashType(args[3].Int())
-	privBytes, e := hexDecode(args[4].String())
+	privBytes, e := bytesFromArg(args[4])
 	if e != nil {
 		return e
 	}
@@ -746,12 +743,12 @@ func txscriptRawTxInWitnessSignature(_ js.Value, args []js.Value) any {
 	}
 	idx := args[1].Int()
 	amt := int64(args[2].Float())
-	subScript, e := hexDecode(args[3].String())
+	subScript, e := bytesFromArg(args[3])
 	if e != nil {
 		return e
 	}
 	hashType := txscript.SigHashType(args[4].Int())
-	privBytes, e := hexDecode(args[5].String())
+	privBytes, e := bytesFromArg(args[5])
 	if e != nil {
 		return e
 	}
@@ -780,12 +777,12 @@ func txscriptWitnessSignature(_ js.Value, args []js.Value) any {
 	}
 	idx := args[1].Int()
 	amt := int64(args[2].Float())
-	subScript, e := hexDecode(args[3].String())
+	subScript, e := bytesFromArg(args[3])
 	if e != nil {
 		return e
 	}
 	hashType := txscript.SigHashType(args[4].Int())
-	privBytes, e := hexDecode(args[5].String())
+	privBytes, e := bytesFromArg(args[5])
 	if e != nil {
 		return e
 	}
@@ -821,14 +818,14 @@ func txscriptRawTxInTaprootSignature(_ js.Value, args []js.Value) any {
 
 	var merkleRoot []byte
 	if args[2].Type() == js.TypeString && args[2].String() != "" {
-		merkleRoot, e = hexDecode(args[2].String())
+		merkleRoot, e = bytesFromArg(args[2])
 		if e != nil {
 			return e
 		}
 	}
 
 	hashType := txscript.SigHashType(args[3].Int())
-	privBytes, e := hexDecode(args[4].String())
+	privBytes, e := bytesFromArg(args[4])
 	if e != nil {
 		return e
 	}

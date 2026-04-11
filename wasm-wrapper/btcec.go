@@ -29,7 +29,7 @@ func btcecPrivKeyFromBytes(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexPrivKey"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -44,7 +44,7 @@ func btcecPubKeyFromBytes(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexPubKey"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -59,7 +59,7 @@ func btcecIsCompressedPubKey(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexPubKey"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -70,7 +70,7 @@ func btcecSerializeUncompressed(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexPubKey"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -85,7 +85,7 @@ func btcecSerializeCompressed(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexPubKey"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -104,11 +104,11 @@ func btcecGenerateSharedSecret(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 2, "hexPrivKey, hexPubKey"); e != nil {
 		return e
 	}
-	privBytes, e := hexDecode(args[0].String())
+	privBytes, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
-	pubBytes, e := hexDecode(args[1].String())
+	pubBytes, e := bytesFromArg(args[1])
 	if e != nil {
 		return e
 	}
@@ -129,11 +129,11 @@ func btcecEcdsaSign(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 2, "hexPrivKey, hexHash"); e != nil {
 		return e
 	}
-	privBytes, e := hexDecode(args[0].String())
+	privBytes, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
-	hashBytes, e := hexDecode(args[1].String())
+	hashBytes, e := bytesFromArg(args[1])
 	if e != nil {
 		return e
 	}
@@ -146,15 +146,15 @@ func btcecEcdsaVerify(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 3, "hexPubKey, hexHash, hexSignature"); e != nil {
 		return e
 	}
-	pubBytes, e := hexDecode(args[0].String())
+	pubBytes, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
-	hashBytes, e := hexDecode(args[1].String())
+	hashBytes, e := bytesFromArg(args[1])
 	if e != nil {
 		return e
 	}
-	sigBytes, e := hexDecode(args[2].String())
+	sigBytes, e := bytesFromArg(args[2])
 	if e != nil {
 		return e
 	}
@@ -174,11 +174,11 @@ func btcecEcdsaSignCompact(_ js.Value, args []js.Value) any {
 		"hexPrivKey, hexHash, isCompressedKey"); e != nil {
 		return e
 	}
-	privBytes, e := hexDecode(args[0].String())
+	privBytes, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
-	hashBytes, e := hexDecode(args[1].String())
+	hashBytes, e := bytesFromArg(args[1])
 	if e != nil {
 		return e
 	}
@@ -191,11 +191,11 @@ func btcecEcdsaRecoverCompact(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 2, "hexSignature, hexHash"); e != nil {
 		return e
 	}
-	sigBytes, e := hexDecode(args[0].String())
+	sigBytes, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
-	hashBytes, e := hexDecode(args[1].String())
+	hashBytes, e := bytesFromArg(args[1])
 	if e != nil {
 		return e
 	}
@@ -213,7 +213,7 @@ func btcecEcdsaParseSignature(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexSignature"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -228,7 +228,7 @@ func btcecEcdsaParseDERSignature(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexSignature"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -247,11 +247,11 @@ func btcecSchnorrSign(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 2, "hexPrivKey, hexHash"); e != nil {
 		return e
 	}
-	privBytes, e := hexDecode(args[0].String())
+	privBytes, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
-	hashBytes, e := hexDecode(args[1].String())
+	hashBytes, e := bytesFromArg(args[1])
 	if e != nil {
 		return e
 	}
@@ -267,15 +267,15 @@ func btcecSchnorrVerify(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 3, "hexPubKey, hexHash, hexSignature"); e != nil {
 		return e
 	}
-	pubBytes, e := hexDecode(args[0].String())
+	pubBytes, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
-	hashBytes, e := hexDecode(args[1].String())
+	hashBytes, e := bytesFromArg(args[1])
 	if e != nil {
 		return e
 	}
-	sigBytes, e := hexDecode(args[2].String())
+	sigBytes, e := bytesFromArg(args[2])
 	if e != nil {
 		return e
 	}
@@ -298,7 +298,7 @@ func btcecSchnorrParsePubKey(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexXOnlyPubKey"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -313,7 +313,7 @@ func btcecSchnorrSerializePubKey(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexPubKey"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -328,7 +328,7 @@ func btcecSchnorrParseSignature(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexSignature"); e != nil {
 		return e
 	}
-	b, e := hexDecode(args[0].String())
+	b, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}

@@ -57,6 +57,18 @@ func bytesToJS(b []byte) js.Value {
 	return dst
 }
 
+// bytesFromArg accepts either a hex string or a Uint8Array from JS.
+func bytesFromArg(arg js.Value) ([]byte, map[string]any) {
+	if arg.InstanceOf(js.Global().Get("Uint8Array")) {
+		buf := make([]byte, arg.Length())
+		if len(buf) > 0 {
+			js.CopyBytesToGo(buf, arg)
+		}
+		return buf, nil
+	}
+	return hexDecode(arg.String())
+}
+
 func hexDecode(s string) ([]byte, map[string]any) {
 	b, err := hex.DecodeString(s)
 	if err != nil {

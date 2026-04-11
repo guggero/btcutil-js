@@ -1,5 +1,5 @@
 import { init, g, unwrap } from './init';
-import type { AddressInfo, Network } from './types';
+import type { AddressInfo, Bytes, Network } from './types';
 
 /** Bitcoin address encoding, decoding, and creation. */
 export const address = {
@@ -12,60 +12,60 @@ export const address = {
 
   /** Create a P2PKH address from a 20-byte pubkey hash (hex).
    *  Calls Go: btcutil.NewAddressPubKeyHash() from btcutil. */
-  async fromPubKeyHash(hexHash: string, network: Network = 'mainnet'): Promise<string> {
+  async fromPubKeyHash(hash: Bytes, network: Network = 'mainnet'): Promise<string> {
     await init();
-    return unwrap<string>(g().address.fromPubKeyHash(hexHash, network));
+    return unwrap<string>(g().address.fromPubKeyHash(hash, network));
   },
 
   /** Create a P2SH address from a 20-byte script hash (hex).
    *  Calls Go: btcutil.NewAddressScriptHashFromHash() from btcutil. */
-  async fromScriptHash(hexHash: string, network: Network = 'mainnet'): Promise<string> {
+  async fromScriptHash(hash: Bytes, network: Network = 'mainnet'): Promise<string> {
     await init();
-    return unwrap<string>(g().address.fromScriptHash(hexHash, network));
+    return unwrap<string>(g().address.fromScriptHash(hash, network));
   },
 
   /** Create a P2SH address by hashing a serialized script (hex).
    *  Calls Go: btcutil.NewAddressScriptHash() from btcutil. */
-  async fromScript(hexScript: string, network: Network = 'mainnet'): Promise<string> {
+  async fromScript(script: Bytes, network: Network = 'mainnet'): Promise<string> {
     await init();
-    return unwrap<string>(g().address.fromScript(hexScript, network));
+    return unwrap<string>(g().address.fromScript(script, network));
   },
 
   /** Create a P2WPKH address from a 20-byte witness program (hex).
    *  Calls Go: btcutil.NewAddressWitnessPubKeyHash() from btcutil. */
   async fromWitnessPubKeyHash(
-    hexProgram: string,
+    program: Bytes,
     network: Network = 'mainnet',
   ): Promise<string> {
     await init();
     return unwrap<string>(
-      g().address.fromWitnessPubKeyHash(hexProgram, network),
+      g().address.fromWitnessPubKeyHash(program, network),
     );
   },
 
   /** Create a P2WSH address from a 32-byte witness program (hex).
    *  Calls Go: btcutil.NewAddressWitnessScriptHash() from btcutil. */
   async fromWitnessScriptHash(
-    hexProgram: string,
+    program: Bytes,
     network: Network = 'mainnet',
   ): Promise<string> {
     await init();
     return unwrap<string>(
-      g().address.fromWitnessScriptHash(hexProgram, network),
+      g().address.fromWitnessScriptHash(program, network),
     );
   },
 
   /** Create a P2TR (Taproot) address from a 32-byte witness program (hex).
    *  Calls Go: btcutil.NewAddressTaproot() from btcutil. */
-  async fromTaproot(hexProgram: string, network: Network = 'mainnet'): Promise<string> {
+  async fromTaproot(program: Bytes, network: Network = 'mainnet'): Promise<string> {
     await init();
-    return unwrap<string>(g().address.fromTaproot(hexProgram, network));
+    return unwrap<string>(g().address.fromTaproot(program, network));
   },
 
   /** Create a P2PK address from a serialized public key (hex).
    *  Calls Go: btcutil.NewAddressPubKey() from btcutil. */
-  async fromPubKey(hexPubKey: string, network: Network = 'mainnet'): Promise<string> {
+  async fromPubKey(pubKey: Bytes, network: Network = 'mainnet'): Promise<string> {
     await init();
-    return unwrap<string>(g().address.fromPubKey(hexPubKey, network));
+    return unwrap<string>(g().address.fromPubKey(pubKey, network));
   },
 };

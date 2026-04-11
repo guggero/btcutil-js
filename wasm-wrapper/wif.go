@@ -38,7 +38,7 @@ func wifEncode(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexPrivateKey"); e != nil {
 		return e
 	}
-	privBytes, e := hexDecode(args[0].String())
+	privBytes, e := bytesFromArg(args[0])
 	if e != nil {
 		return e
 	}
