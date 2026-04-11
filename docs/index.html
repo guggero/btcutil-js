@@ -1,0 +1,981 @@
+<!DOCTYPE html><html class="default" lang="en" data-base="./"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>btcutil-js - v0.1.0</title><meta name="description" content="Documentation for btcutil-js"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="assets/style.css"/><link rel="stylesheet" href="assets/highlight.css"/><script defer src="assets/main.js"></script><script async src="assets/icons.js" id="tsd-icons-script"></script><script async src="assets/search.js" id="tsd-search-script"></script><script async src="assets/navigation.js" id="tsd-nav-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar"><div class="tsd-toolbar-contents container"><a href="index.html" class="title">btcutil-js - v0.1.0</a><div id="tsd-toolbar-links"><a href="https://github.com/guggero/btcutil-js">GitHub</a></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/><ul role="listbox" id="tsd-search-results"></ul><div id="tsd-search-status" aria-live="polite" aria-atomic="true"><div>Preparing search index...</div></div></dialog><a href="#" class="tsd-widget menu" id="tsd-toolbar-menu-trigger" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-menu"></use></svg></a></div></header><div class="container container-main"><div class="col-content"><div class="tsd-page-title"><h1>btcutil-js - v0.1.0</h1></div><div class="tsd-panel tsd-typography"><h1 id="btcutil-js" class="tsd-anchor-link">btcutil-js<a href="#btcutil-js" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<p>A comprehensive Bitcoin utility library for JavaScript/TypeScript, powered by
+Go's <a href="https://github.com/btcsuite/btcd/tree/master/btcutil">btcd/btcutil</a>
+compiled to WebAssembly. Works in both Node.js and browsers.</p>
+<p>Provides <strong>base58</strong>, <strong>bech32</strong>, <strong>address</strong> encoding/decoding, <strong>amount</strong>
+conversions, <strong>Hash160</strong>, <strong>WIF</strong>, <strong>BIP-32 HD key</strong> derivation, <strong>BIP-69
+transaction sorting</strong>, <strong>BIP-174 PSBT</strong> inspection, <strong>BIP-322 message
+verification</strong>, <strong>BIP-158 GCS filters</strong>, <strong>Bloom filter</strong> hashing, and raw
+<strong>transaction</strong> utilities.</p>
+<h2 id="prerequisites" class="tsd-anchor-link">Prerequisites<a href="#prerequisites" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<ul>
+<li><strong>Go &gt;= 1.25.0</strong> — Install from <a href="https://go.dev/dl/">https://go.dev/dl/</a></li>
+<li><strong>Node.js &gt;= 18</strong> — Install from <a href="https://nodejs.org/">https://nodejs.org/</a></li>
+</ul>
+<h2 id="building" class="tsd-anchor-link">Building<a href="#building" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>Install npm dependencies, then build the WASM module and JS wrapper:</p>
+<pre><code class="bash"><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">install</span><br/><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">run</span><span class="hl-1"> </span><span class="hl-2">build</span>
+</code><button type="button">Copy</button></pre>
+
+<p>This runs two steps under the hood:</p>
+<ol>
+<li><strong><code>npm run build:wasm</code></strong> — Compiles the Go source to <code>btcutil.wasm</code> using
+<code>GOOS=js GOARCH=wasm</code>.</li>
+<li><strong><code>npm run build:js</code></strong> — Inlines the Go WASM runtime, bundles the TypeScript
+source with <a href="https://github.com/egoist/tsup">tsup</a>, and copies
+<code>btcutil.wasm</code> into <code>dist/</code>.</li>
+</ol>
+<h2 id="usage" class="tsd-anchor-link">Usage<a href="#usage" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<h3 id="nodejs-typescript" class="tsd-anchor-link">Node.js / TypeScript<a href="#nodejs-typescript" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<pre><code class="bash"><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">install</span><span class="hl-1"> </span><span class="hl-2">btcutil-js</span>
+</code><button type="button">Copy</button></pre>
+
+<pre><code class="typescript"><span class="hl-3">import</span><span class="hl-1"> { </span><span class="hl-4">hdkeychain</span><span class="hl-1">, </span><span class="hl-4">hash</span><span class="hl-1">, </span><span class="hl-4">address</span><span class="hl-1"> } </span><span class="hl-3">from</span><span class="hl-1"> </span><span class="hl-2">&#39;btcutil-js&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-5">// Generate a BIP-84 native SegWit address from a random seed.</span><br/><span class="hl-6">const</span><span class="hl-1"> </span><span class="hl-7">seed</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">hdkeychain</span><span class="hl-1">.</span><span class="hl-0">generateSeed</span><span class="hl-1">();</span><br/><span class="hl-6">const</span><span class="hl-1"> </span><span class="hl-7">master</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">hdkeychain</span><span class="hl-1">.</span><span class="hl-0">newMaster</span><span class="hl-1">(</span><span class="hl-4">seed</span><span class="hl-1">);</span><br/><span class="hl-6">const</span><span class="hl-1"> </span><span class="hl-7">child</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">hdkeychain</span><span class="hl-1">.</span><span class="hl-0">derivePath</span><span class="hl-1">(</span><span class="hl-4">master</span><span class="hl-1">, </span><span class="hl-2">&quot;m/84&#39;/0&#39;/0&#39;/0/0&quot;</span><span class="hl-1">);</span><br/><span class="hl-6">const</span><span class="hl-1"> </span><span class="hl-7">pubKey</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">hdkeychain</span><span class="hl-1">.</span><span class="hl-0">publicKey</span><span class="hl-1">(</span><span class="hl-4">child</span><span class="hl-1">);</span><br/><span class="hl-6">const</span><span class="hl-1"> </span><span class="hl-7">pkHash</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">hash</span><span class="hl-1">.</span><span class="hl-0">hash160</span><span class="hl-1">(</span><span class="hl-4">pubKey</span><span class="hl-1">);</span><br/><span class="hl-6">const</span><span class="hl-1"> </span><span class="hl-7">addr</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">address</span><span class="hl-1">.</span><span class="hl-0">fromWitnessPubKeyHash</span><span class="hl-1">(</span><span class="hl-4">pkHash</span><span class="hl-1">);</span><br/><span class="hl-4">console</span><span class="hl-1">.</span><span class="hl-0">log</span><span class="hl-1">(</span><span class="hl-4">addr</span><span class="hl-1">); </span><span class="hl-5">// bc1q…</span>
+</code><button type="button">Copy</button></pre>
+
+<h3 id="custom-wasm-loading" class="tsd-anchor-link">Custom WASM loading<a href="#custom-wasm-loading" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>You can pre-initialize the WASM module with a custom source by calling <code>init</code>
+before any other function:</p>
+<pre><code class="typescript"><span class="hl-3">import</span><span class="hl-1"> { </span><span class="hl-4">init</span><span class="hl-1"> } </span><span class="hl-3">from</span><span class="hl-1"> </span><span class="hl-2">&#39;btcutil-js&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-5">// From a URL</span><br/><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-0">init</span><span class="hl-1">(</span><span class="hl-2">&#39;/assets/btcutil.wasm&#39;</span><span class="hl-1">);</span><br/><br/><span class="hl-5">// From an ArrayBuffer</span><br/><span class="hl-6">const</span><span class="hl-1"> </span><span class="hl-7">buf</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-0">fetch</span><span class="hl-1">(</span><span class="hl-2">&#39;/assets/btcutil.wasm&#39;</span><span class="hl-1">).</span><span class="hl-0">then</span><span class="hl-1">(</span><span class="hl-4">r</span><span class="hl-1"> </span><span class="hl-6">=&gt;</span><span class="hl-1"> </span><span class="hl-4">r</span><span class="hl-1">.</span><span class="hl-0">arrayBuffer</span><span class="hl-1">());</span><br/><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-0">init</span><span class="hl-1">(</span><span class="hl-4">buf</span><span class="hl-1">);</span><br/><br/><span class="hl-5">// From a fetch Response (uses streaming compilation)</span><br/><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-0">init</span><span class="hl-1">(</span><span class="hl-0">fetch</span><span class="hl-1">(</span><span class="hl-2">&#39;/assets/btcutil.wasm&#39;</span><span class="hl-1">));</span>
+</code><button type="button">Copy</button></pre>
+
+<h2 id="api" class="tsd-anchor-link">API<a href="#api" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>All functions are <strong>async</strong> (they ensure the WASM module is loaded on first
+call). Byte data is represented as <strong>hex strings</strong> throughout. Network
+parameters accept <code>&quot;mainnet&quot;</code> (default), <code>&quot;testnet&quot;</code> / <code>&quot;testnet3&quot;</code>,
+<code>&quot;testnet4&quot;</code>, <code>&quot;signet&quot;</code>, <code>&quot;regtest&quot;</code>, or <code>&quot;simnet&quot;</code>.</p>
+<hr>
+<h3 id="_" class="tsd-anchor-link"><code>init(wasmSource?)</code><a href="#_" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Explicitly initialize the WASM module. Called automatically on the first API
+call. Accepts an optional <code>ArrayBuffer</code>, <code>Response</code>, or URL string.</p>
+<hr>
+<h3 id="_-1" class="tsd-anchor-link"><code>base58</code><a href="#_-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Base58 encoding and decoding (with and without check).</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>encode(hexData)</code></td>
+<td><code>base58.Encode()</code></td>
+<td>Encode bytes to a base58 string.</td>
+</tr>
+<tr>
+<td><code>decode(str)</code></td>
+<td><code>base58.Decode()</code></td>
+<td>Decode a base58 string to bytes (hex).</td>
+</tr>
+<tr>
+<td><code>checkEncode(hexData, version)</code></td>
+<td><code>base58.CheckEncode()</code></td>
+<td>Encode with a version byte and checksum.</td>
+</tr>
+<tr>
+<td><code>checkDecode(str)</code></td>
+<td><code>base58.CheckDecode()</code></td>
+<td>Decode and verify checksum. Returns <code>{ data, version }</code>.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-2" class="tsd-anchor-link"><code>bech32</code><a href="#_-2" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Bech32 and bech32m encoding/decoding.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>encode(hrp, hexData5bit)</code></td>
+<td><code>bech32.Encode()</code></td>
+<td>Bech32-encode 5-bit data with the given HRP.</td>
+</tr>
+<tr>
+<td><code>encodeM(hrp, hexData5bit)</code></td>
+<td><code>bech32.EncodeM()</code></td>
+<td>Bech32m-encode 5-bit data with the given HRP.</td>
+</tr>
+<tr>
+<td><code>decode(str)</code></td>
+<td><code>bech32.Decode()</code></td>
+<td>Decode a bech32 string (90-char limit). Returns <code>{ hrp, data }</code>.</td>
+</tr>
+<tr>
+<td><code>decodeNoLimit(str)</code></td>
+<td><code>bech32.DecodeNoLimit()</code></td>
+<td>Decode without length limit. Returns <code>{ hrp, data }</code>.</td>
+</tr>
+<tr>
+<td><code>encodeFromBase256(hrp, hexData)</code></td>
+<td><code>bech32.EncodeFromBase256()</code></td>
+<td>Encode base-256 data (handles 8→5 bit conversion).</td>
+</tr>
+<tr>
+<td><code>decodeToBase256(str)</code></td>
+<td><code>bech32.DecodeToBase256()</code></td>
+<td>Decode to base-256 data (handles 5→8 bit conversion). Returns <code>{ hrp, data }</code>.</td>
+</tr>
+<tr>
+<td><code>convertBits(hexData, fromBits, toBits, pad)</code></td>
+<td><code>bech32.ConvertBits()</code></td>
+<td>Convert between bit groups (e.g. 8→5 or 5→8).</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-3" class="tsd-anchor-link"><code>address</code><a href="#_-3" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Bitcoin address encoding, decoding, and creation.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>decode(addr, network?)</code></td>
+<td><code>btcutil.DecodeAddress()</code></td>
+<td>Decode an address string. Returns <code>AddressInfo</code> with <code>type</code>, <code>scriptAddress</code>, <code>witnessVersion</code>, etc.</td>
+</tr>
+<tr>
+<td><code>fromPubKeyHash(hexHash, network?)</code></td>
+<td><code>btcutil.NewAddressPubKeyHash()</code></td>
+<td>Create a P2PKH address from a 20-byte pubkey hash.</td>
+</tr>
+<tr>
+<td><code>fromScriptHash(hexHash, network?)</code></td>
+<td><code>btcutil.NewAddressScriptHashFromHash()</code></td>
+<td>Create a P2SH address from a 20-byte script hash.</td>
+</tr>
+<tr>
+<td><code>fromScript(hexScript, network?)</code></td>
+<td><code>btcutil.NewAddressScriptHash()</code></td>
+<td>Create a P2SH address by hashing a serialized script.</td>
+</tr>
+<tr>
+<td><code>fromWitnessPubKeyHash(hexProgram, network?)</code></td>
+<td><code>btcutil.NewAddressWitnessPubKeyHash()</code></td>
+<td>Create a P2WPKH address from a 20-byte witness program.</td>
+</tr>
+<tr>
+<td><code>fromWitnessScriptHash(hexProgram, network?)</code></td>
+<td><code>btcutil.NewAddressWitnessScriptHash()</code></td>
+<td>Create a P2WSH address from a 32-byte witness program.</td>
+</tr>
+<tr>
+<td><code>fromTaproot(hexProgram, network?)</code></td>
+<td><code>btcutil.NewAddressTaproot()</code></td>
+<td>Create a P2TR (Taproot) address from a 32-byte witness program.</td>
+</tr>
+<tr>
+<td><code>fromPubKey(hexPubKey, network?)</code></td>
+<td><code>btcutil.NewAddressPubKey()</code></td>
+<td>Create a P2PK address from a serialized public key.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-4" class="tsd-anchor-link"><code>amount</code><a href="#_-4" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Bitcoin amount conversions between BTC and satoshis.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fromBTC(btc)</code></td>
+<td><code>btcutil.NewAmount()</code></td>
+<td>Convert a BTC float to satoshis.</td>
+</tr>
+<tr>
+<td><code>toBTC(satoshis)</code></td>
+<td><code>Amount.ToBTC()</code></td>
+<td>Convert satoshis to BTC.</td>
+</tr>
+<tr>
+<td><code>format(satoshis, unit?)</code></td>
+<td><code>Amount.Format()</code></td>
+<td>Format with a unit label. Units: <code>&quot;BTC&quot;</code>, <code>&quot;mBTC&quot;</code>, <code>&quot;uBTC&quot;</code>, <code>&quot;satoshi&quot;</code> / <code>&quot;sat&quot;</code>.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-5" class="tsd-anchor-link"><code>hash</code><a href="#_-5" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Cryptographic hash functions.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hash160(hexData)</code></td>
+<td><code>btcutil.Hash160()</code></td>
+<td>Compute RIPEMD160(SHA256(data)).</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-6" class="tsd-anchor-link"><code>wif</code><a href="#_-6" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Wallet Import Format encoding and decoding.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>decode(wifStr)</code></td>
+<td><code>btcutil.DecodeWIF()</code></td>
+<td>Decode a WIF string. Returns <code>{ privateKey, compressPubKey, publicKey, network }</code>.</td>
+</tr>
+<tr>
+<td><code>encode(hexPrivateKey, network?, compress?)</code></td>
+<td><code>btcutil.NewWIF()</code></td>
+<td>Encode a private key as a WIF string. <code>compress</code> defaults to <code>true</code>.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-7" class="tsd-anchor-link"><code>hdkeychain</code><a href="#_-7" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>BIP-32 hierarchical deterministic key derivation.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>newMaster(hexSeed, network?)</code></td>
+<td><code>hdkeychain.NewMaster()</code></td>
+<td>Create a master extended key from a seed.</td>
+</tr>
+<tr>
+<td><code>fromString(key)</code></td>
+<td><code>hdkeychain.NewKeyFromString()</code></td>
+<td>Parse an xprv/xpub/tprv/tpub string. Returns <code>ExtendedKeyInfo</code>.</td>
+</tr>
+<tr>
+<td><code>derive(key, index)</code></td>
+<td><code>ExtendedKey.Derive()</code></td>
+<td>Derive a child key at the given index.</td>
+</tr>
+<tr>
+<td><code>deriveHardened(key, index)</code></td>
+<td><code>ExtendedKey.Derive()</code></td>
+<td>Derive a hardened child (adds <code>0x80000000</code> automatically).</td>
+</tr>
+<tr>
+<td><code>derivePath(key, path)</code></td>
+<td><code>ExtendedKey.Derive()</code></td>
+<td>Derive along a BIP-32 path like <code>&quot;m/44'/0'/0'/0/0&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>neuter(key)</code></td>
+<td><code>ExtendedKey.Neuter()</code></td>
+<td>Convert a private key to its public counterpart.</td>
+</tr>
+<tr>
+<td><code>generateSeed(length?)</code></td>
+<td><code>hdkeychain.GenerateSeed()</code></td>
+<td>Generate a random seed (default 32 bytes).</td>
+</tr>
+<tr>
+<td><code>publicKey(key)</code></td>
+<td><code>ExtendedKey.ECPubKey()</code></td>
+<td>Get the compressed public key (hex).</td>
+</tr>
+<tr>
+<td><code>address(key, network?)</code></td>
+<td><code>ExtendedKey.Address()</code></td>
+<td>Get the P2PKH address.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-8" class="tsd-anchor-link"><code>bip322</code><a href="#_-8" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>BIP-322 generic signed message verification.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>verifyMessage(message, address, signature, network?)</code></td>
+<td><code>bip322.VerifyMessage()</code></td>
+<td>Verify a BIP-322 signed message. Returns <code>{ valid, error? }</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Supports <strong>P2WPKH</strong>, <strong>P2SH-P2WPKH</strong>, <strong>P2TR</strong> (Taproot), and <strong>multisig</strong>
+address types.</p>
+<hr>
+<h3 id="_-9" class="tsd-anchor-link"><code>txsort</code><a href="#_-9" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>BIP-69 deterministic transaction sorting.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sort(hexRawTx)</code></td>
+<td><code>txsort.Sort()</code></td>
+<td>Sort inputs and outputs per BIP-69. Returns sorted tx hex.</td>
+</tr>
+<tr>
+<td><code>isSorted(hexRawTx)</code></td>
+<td><code>txsort.IsSorted()</code></td>
+<td>Check if a transaction is BIP-69 sorted.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-10" class="tsd-anchor-link"><code>tx</code><a href="#_-10" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Transaction utilities.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hash(hexRawTx)</code></td>
+<td><code>Tx.Hash()</code></td>
+<td>Compute the txid (double-SHA256, reversed).</td>
+</tr>
+<tr>
+<td><code>witnessHash(hexRawTx)</code></td>
+<td><code>Tx.WitnessHash()</code></td>
+<td>Compute the witness txid (wtxid).</td>
+</tr>
+<tr>
+<td><code>hasWitness(hexRawTx)</code></td>
+<td><code>Tx.HasWitness()</code></td>
+<td>Check if the transaction contains witness data.</td>
+</tr>
+<tr>
+<td><code>decode(hexRawTx)</code></td>
+<td><code>btcutil.NewTx()</code></td>
+<td>Decode into a structured object with <code>txid</code>, <code>wtxid</code>, <code>version</code>, <code>locktime</code>, <code>inputs[]</code>, <code>outputs[]</code>.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-11" class="tsd-anchor-link"><code>psbt</code><a href="#_-11" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Partially Signed Bitcoin Transaction (BIP-174) utilities.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>decode(base64Psbt)</code></td>
+<td><code>psbt.NewFromRawBytes()</code></td>
+<td>Decode a base64 PSBT. Returns <code>PsbtDecodeResult</code> with inputs, outputs, fee, etc.</td>
+</tr>
+<tr>
+<td><code>isComplete(base64Psbt)</code></td>
+<td><code>Packet.IsComplete()</code></td>
+<td>Check if the PSBT is fully signed.</td>
+</tr>
+<tr>
+<td><code>extract(base64Psbt)</code></td>
+<td><code>psbt.Extract()</code></td>
+<td>Extract the final signed transaction (hex).</td>
+</tr>
+<tr>
+<td><code>getFee(base64Psbt)</code></td>
+<td><code>Packet.GetTxFee()</code></td>
+<td>Get the fee in satoshis (requires UTXO info on inputs).</td>
+</tr>
+<tr>
+<td><code>fromBase64(base64Psbt)</code></td>
+<td><code>Packet.Serialize()</code></td>
+<td>Convert a base64 PSBT to raw bytes (hex).</td>
+</tr>
+<tr>
+<td><code>toBase64(hexPsbt)</code></td>
+<td><code>Packet.B64Encode()</code></td>
+<td>Convert raw PSBT bytes (hex) to base64.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-12" class="tsd-anchor-link"><code>gcs</code><a href="#_-12" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Golomb-Coded Set filter utilities (BIP-158 compact block filters).</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>buildFilter(p, m, hexKey, hexDataItems[])</code></td>
+<td><code>gcs.BuildGCSFilter()</code></td>
+<td>Build a GCS filter. Returns <code>{ filter, n }</code>.</td>
+</tr>
+<tr>
+<td><code>match(hexFilter, n, p, m, hexKey, hexTarget)</code></td>
+<td><code>Filter.Match()</code></td>
+<td>Test if a single element matches.</td>
+</tr>
+<tr>
+<td><code>matchAny(hexFilter, n, p, m, hexKey, hexTargets[])</code></td>
+<td><code>Filter.MatchAny()</code></td>
+<td>Test if any element matches.</td>
+</tr>
+</tbody>
+</table>
+<p>Parameters: <code>p</code> = false-positive rate (1/2^P), <code>m</code> = filter parameter M,
+<code>hexKey</code> = 16-byte SipHash key.</p>
+<hr>
+<h3 id="_-13" class="tsd-anchor-link"><code>bloom</code><a href="#_-13" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Bloom filter utilities.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>murmurHash3(seed, hexData)</code></td>
+<td><code>bloom.MurmurHash3()</code></td>
+<td>Compute MurmurHash3 of data with the given seed.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-14" class="tsd-anchor-link"><code>txscript</code><a href="#_-14" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Bitcoin transaction script analysis, creation, taproot, and signing.</p>
+<p><strong>Script type checks:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>isPayToPubKey(hexScript)</code></td>
+<td><code>txscript.IsPayToPubKey()</code></td>
+<td>Check if script is P2PK.</td>
+</tr>
+<tr>
+<td><code>isPayToPubKeyHash(hexScript)</code></td>
+<td><code>txscript.IsPayToPubKeyHash()</code></td>
+<td>Check if script is P2PKH.</td>
+</tr>
+<tr>
+<td><code>isPayToScriptHash(hexScript)</code></td>
+<td><code>txscript.IsPayToScriptHash()</code></td>
+<td>Check if script is P2SH.</td>
+</tr>
+<tr>
+<td><code>isPayToWitnessPubKeyHash(hexScript)</code></td>
+<td><code>txscript.IsPayToWitnessPubKeyHash()</code></td>
+<td>Check if script is P2WPKH.</td>
+</tr>
+<tr>
+<td><code>isPayToWitnessScriptHash(hexScript)</code></td>
+<td><code>txscript.IsPayToWitnessScriptHash()</code></td>
+<td>Check if script is P2WSH.</td>
+</tr>
+<tr>
+<td><code>isPayToTaproot(hexScript)</code></td>
+<td><code>txscript.IsPayToTaproot()</code></td>
+<td>Check if script is P2TR.</td>
+</tr>
+<tr>
+<td><code>isWitnessProgram(hexScript)</code></td>
+<td><code>txscript.IsWitnessProgram()</code></td>
+<td>Check if script is any witness program.</td>
+</tr>
+<tr>
+<td><code>isNullData(hexScript)</code></td>
+<td><code>txscript.IsNullData()</code></td>
+<td>Check if script is OP_RETURN null data.</td>
+</tr>
+<tr>
+<td><code>isMultisigScript(hexScript)</code></td>
+<td><code>txscript.IsMultisigScript()</code></td>
+<td>Check if script is multisig.</td>
+</tr>
+<tr>
+<td><code>isUnspendable(hexScript)</code></td>
+<td><code>txscript.IsUnspendable()</code></td>
+<td>Check if script is provably unspendable.</td>
+</tr>
+<tr>
+<td><code>isPushOnlyScript(hexScript)</code></td>
+<td><code>txscript.IsPushOnlyScript()</code></td>
+<td>Check if script contains only push ops.</td>
+</tr>
+<tr>
+<td><code>scriptHasOpSuccess(hexScript)</code></td>
+<td><code>txscript.ScriptHasOpSuccess()</code></td>
+<td>Check if script contains OP_SUCCESS.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Script analysis:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>disasmString(hexScript)</code></td>
+<td><code>txscript.DisasmString()</code></td>
+<td>Disassemble script to human-readable opcodes.</td>
+</tr>
+<tr>
+<td><code>getScriptClass(hexScript)</code></td>
+<td><code>txscript.GetScriptClass()</code></td>
+<td>Get the standard script class name.</td>
+</tr>
+<tr>
+<td><code>extractWitnessProgramInfo(hexScript)</code></td>
+<td><code>txscript.ExtractWitnessProgramInfo()</code></td>
+<td>Extract witness version and program. Returns <code>{ version, program }</code>.</td>
+</tr>
+<tr>
+<td><code>extractPkScriptAddrs(hexScript, network?)</code></td>
+<td><code>txscript.ExtractPkScriptAddrs()</code></td>
+<td>Extract addresses and required sigs. Returns <code>{ scriptClass, addresses[], reqSigs }</code>.</td>
+</tr>
+<tr>
+<td><code>pushedData(hexScript)</code></td>
+<td><code>txscript.PushedData()</code></td>
+<td>Extract all data pushes from a script.</td>
+</tr>
+<tr>
+<td><code>getSigOpCount(hexScript)</code></td>
+<td><code>txscript.GetSigOpCount()</code></td>
+<td>Count signature operations in a script.</td>
+</tr>
+<tr>
+<td><code>calcMultiSigStats(hexScript)</code></td>
+<td><code>txscript.CalcMultiSigStats()</code></td>
+<td>Get multisig stats. Returns <code>{ numPubKeys, numSigs }</code>.</td>
+</tr>
+<tr>
+<td><code>parsePkScript(hexScript, network?)</code></td>
+<td><code>txscript.ParsePkScript()</code></td>
+<td>Parse into <code>{ class, script, address? }</code>.</td>
+</tr>
+<tr>
+<td><code>computePkScript(hexSigScript, hexWitness[], network?)</code></td>
+<td><code>txscript.ComputePkScript()</code></td>
+<td>Recover pkScript from spent input's sigScript/witness.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Script creation:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>payToAddrScript(address, network?)</code></td>
+<td><code>txscript.PayToAddrScript()</code></td>
+<td>Create a pkScript paying to an address.</td>
+</tr>
+<tr>
+<td><code>nullDataScript(hexData)</code></td>
+<td><code>txscript.NullDataScript()</code></td>
+<td>Create an OP_RETURN null data script.</td>
+</tr>
+<tr>
+<td><code>payToTaprootScript(hexPubKey)</code></td>
+<td><code>txscript.PayToTaprootScript()</code></td>
+<td>Create a P2TR script from a 32-byte x-only key.</td>
+</tr>
+<tr>
+<td><code>multiSigScript(hexPubKeys[], nRequired, network?)</code></td>
+<td><code>txscript.MultiSigScript()</code></td>
+<td>Create a multisig script.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Taproot:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>computeTaprootOutputKey(hexInternalKey, hexScriptRoot?)</code></td>
+<td><code>txscript.ComputeTaprootOutputKey()</code></td>
+<td>Compute tweaked output key.</td>
+</tr>
+<tr>
+<td><code>computeTaprootKeyNoScript(hexInternalKey)</code></td>
+<td><code>txscript.ComputeTaprootKeyNoScript()</code></td>
+<td>Compute output key for key-only spend (BIP-86).</td>
+</tr>
+<tr>
+<td><code>tweakTaprootPrivKey(hexPrivKey, hexScriptRoot?)</code></td>
+<td><code>txscript.TweakTaprootPrivKey()</code></td>
+<td>Tweak a private key for taproot key-path spending.</td>
+</tr>
+<tr>
+<td><code>parseControlBlock(hexControlBlock)</code></td>
+<td><code>txscript.ParseControlBlock()</code></td>
+<td>Parse a serialized control block.</td>
+</tr>
+<tr>
+<td><code>assembleTaprootScriptTree(hexInternalKey, leaves[])</code></td>
+<td><code>txscript.AssembleTaprootScriptTree()</code></td>
+<td>Build a script tree with control blocks. Returns <code>{ outputKey, merkleRoot, leaves[] }</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Signature hashing:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>calcSignatureHash(hexScript, hashType, hexRawTx, idx)</code></td>
+<td><code>txscript.CalcSignatureHash()</code></td>
+<td>Legacy (pre-segwit) sighash.</td>
+</tr>
+<tr>
+<td><code>calcWitnessSigHash(hexScript, hashType, hexRawTx, idx, amount)</code></td>
+<td><code>txscript.CalcWitnessSigHash()</code></td>
+<td>BIP-143 witness v0 sighash.</td>
+</tr>
+<tr>
+<td><code>calcTaprootSignatureHash(hashType, hexRawTx, idx, prevOuts[])</code></td>
+<td><code>txscript.CalcTaprootSignatureHash()</code></td>
+<td>BIP-341 taproot sighash.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Signing:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rawTxInSignature(hexRawTx, idx, hexSubScript, hashType, hexPrivKey)</code></td>
+<td><code>txscript.RawTxInSignature()</code></td>
+<td>Legacy input signature (DER + hashType).</td>
+</tr>
+<tr>
+<td><code>rawTxInWitnessSignature(hexRawTx, idx, amount, hexSubScript, hashType, hexPrivKey)</code></td>
+<td><code>txscript.RawTxInWitnessSignature()</code></td>
+<td>Witness v0 input signature.</td>
+</tr>
+<tr>
+<td><code>witnessSignature(hexRawTx, idx, amount, hexSubScript, hashType, hexPrivKey, compress)</code></td>
+<td><code>txscript.WitnessSignature()</code></td>
+<td>Complete P2WPKH witness stack (sig + pubkey).</td>
+</tr>
+<tr>
+<td><code>rawTxInTaprootSignature(hexRawTx, idx, hexMerkleRoot, hashType, hexPrivKey, prevOuts[])</code></td>
+<td><code>txscript.RawTxInTaprootSignature()</code></td>
+<td>Taproot key-path signature.</td>
+</tr>
+</tbody>
+</table>
+<p>Hash type constants: <code>SigHashAll = 1</code>, <code>SigHashNone = 2</code>, <code>SigHashSingle = 3</code>, <code>SigHashAnyOneCanPay = 0x80</code>, <code>SigHashDefault = 0</code> (taproot).</p>
+<hr>
+<h3 id="_-15" class="tsd-anchor-link"><code>btcec</code><a href="#_-15" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>secp256k1 elliptic curve cryptography: key management, ECDSA, Schnorr, ECDH.</p>
+<p><strong>Key management:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>newPrivateKey()</code></td>
+<td><code>btcec.NewPrivateKey()</code></td>
+<td>Generate a random private key. Returns <code>{ privateKey, publicKey }</code>.</td>
+</tr>
+<tr>
+<td><code>privKeyFromBytes(hexPrivKey)</code></td>
+<td><code>btcec.PrivKeyFromBytes()</code></td>
+<td>Derive key pair from private key bytes. Returns <code>{ privateKey, publicKey }</code>.</td>
+</tr>
+<tr>
+<td><code>pubKeyFromBytes(hexPubKey)</code></td>
+<td><code>btcec.ParsePubKey()</code></td>
+<td>Parse and normalize a public key to compressed form.</td>
+</tr>
+<tr>
+<td><code>isCompressedPubKey(hexPubKey)</code></td>
+<td><code>btcec.IsCompressedPubKey()</code></td>
+<td>Check if public key bytes are compressed (33 bytes).</td>
+</tr>
+<tr>
+<td><code>serializeUncompressed(hexPubKey)</code></td>
+<td><code>PublicKey.SerializeUncompressed()</code></td>
+<td>Serialize to uncompressed 65-byte form.</td>
+</tr>
+<tr>
+<td><code>serializeCompressed(hexPubKey)</code></td>
+<td><code>PublicKey.SerializeCompressed()</code></td>
+<td>Serialize to compressed 33-byte form.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>ECDH:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>generateSharedSecret(hexPrivKey, hexPubKey)</code></td>
+<td><code>btcec.GenerateSharedSecret()</code></td>
+<td>Compute ECDH shared secret (32 bytes).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>ECDSA:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ecdsaSign(hexPrivKey, hexHash)</code></td>
+<td><code>ecdsa.Sign()</code></td>
+<td>Sign a 32-byte hash (RFC 6979). Returns DER-encoded signature.</td>
+</tr>
+<tr>
+<td><code>ecdsaVerify(hexPubKey, hexHash, hexSig)</code></td>
+<td><code>Signature.Verify()</code></td>
+<td>Verify a DER-encoded ECDSA signature.</td>
+</tr>
+<tr>
+<td><code>ecdsaSignCompact(hexPrivKey, hexHash, isCompressed)</code></td>
+<td><code>ecdsa.SignCompact()</code></td>
+<td>Sign and return a 65-byte recoverable compact signature.</td>
+</tr>
+<tr>
+<td><code>ecdsaRecoverCompact(hexSig, hexHash)</code></td>
+<td><code>ecdsa.RecoverCompact()</code></td>
+<td>Recover public key from compact signature. Returns <code>{ publicKey, compressed }</code>.</td>
+</tr>
+<tr>
+<td><code>ecdsaParseSignature(hexSig)</code></td>
+<td><code>ecdsa.ParseSignature()</code></td>
+<td>Parse and normalize a BER-encoded signature.</td>
+</tr>
+<tr>
+<td><code>ecdsaParseDERSignature(hexSig)</code></td>
+<td><code>ecdsa.ParseDERSignature()</code></td>
+<td>Parse a strict DER-encoded signature.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Schnorr (BIP-340):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>schnorrSign(hexPrivKey, hexHash)</code></td>
+<td><code>schnorr.Sign()</code></td>
+<td>Sign a 32-byte hash. Returns 64-byte signature.</td>
+</tr>
+<tr>
+<td><code>schnorrVerify(hexPubKey, hexHash, hexSig)</code></td>
+<td><code>Signature.Verify()</code></td>
+<td>Verify a Schnorr signature.</td>
+</tr>
+<tr>
+<td><code>schnorrParsePubKey(hexXOnlyPubKey)</code></td>
+<td><code>schnorr.ParsePubKey()</code></td>
+<td>Parse a 32-byte x-only key. Returns 33-byte compressed.</td>
+</tr>
+<tr>
+<td><code>schnorrSerializePubKey(hexPubKey)</code></td>
+<td><code>schnorr.SerializePubKey()</code></td>
+<td>Serialize to 32-byte x-only format.</td>
+</tr>
+<tr>
+<td><code>schnorrParseSignature(hexSig)</code></td>
+<td><code>schnorr.ParseSignature()</code></td>
+<td>Parse a 64-byte Schnorr signature.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-16" class="tsd-anchor-link"><code>chaincfg</code><a href="#_-16" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Bitcoin network configuration parameters.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getParams(network)</code></td>
+<td><code>chaincfg.*NetParams</code></td>
+<td>Get network parameters. Returns <code>{ name, bech32HRPSegwit, pubKeyHashAddrID, ... }</code>.</td>
+</tr>
+<tr>
+<td><code>isPubKeyHashAddrID(id)</code></td>
+<td><code>chaincfg.IsPubKeyHashAddrID()</code></td>
+<td>Check if byte is a known P2PKH prefix.</td>
+</tr>
+<tr>
+<td><code>isScriptHashAddrID(id)</code></td>
+<td><code>chaincfg.IsScriptHashAddrID()</code></td>
+<td>Check if byte is a known P2SH prefix.</td>
+</tr>
+<tr>
+<td><code>isBech32SegwitPrefix(prefix)</code></td>
+<td><code>chaincfg.IsBech32SegwitPrefix()</code></td>
+<td>Check if string is a known bech32 HRP.</td>
+</tr>
+<tr>
+<td><code>hdPrivateKeyToPublicKeyID(hexID)</code></td>
+<td><code>chaincfg.HDPrivateKeyToPublicKeyID()</code></td>
+<td>Convert HD private key version to public.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="_-17" class="tsd-anchor-link"><code>chainhash</code><a href="#_-17" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>SHA-256 and tagged hash utilities.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Go function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hash(hexData)</code></td>
+<td><code>chainhash.HashB()</code></td>
+<td>Compute SHA-256.</td>
+</tr>
+<tr>
+<td><code>doubleHash(hexData)</code></td>
+<td><code>chainhash.DoubleHashB()</code></td>
+<td>Compute SHA-256d (double SHA-256).</td>
+</tr>
+<tr>
+<td><code>taggedHash(hexTag, hexMsgs[])</code></td>
+<td><code>chainhash.TaggedHash()</code></td>
+<td>Compute BIP-340 tagged hash.</td>
+</tr>
+<tr>
+<td><code>newHashFromStr(hashStr)</code></td>
+<td><code>chainhash.NewHashFromStr()</code></td>
+<td>Parse a byte-reversed hash string (like a txid) to raw bytes.</td>
+</tr>
+<tr>
+<td><code>hashToString(hexHash)</code></td>
+<td><code>Hash.String()</code></td>
+<td>Convert raw bytes to byte-reversed display string.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="testing" class="tsd-anchor-link">Testing<a href="#testing" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<pre><code class="bash"><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">run</span><span class="hl-1"> </span><span class="hl-2">build</span><br/><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">test</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Tests cover all namespaces including BIP-322 test vectors, ECDSA/Schnorr
+signing round-trips, taproot script tree assembly, and sighash computation.</p>
+<h2 id="license" class="tsd-anchor-link">License<a href="#license" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>MIT</p>
+</div></div><div class="col-sidebar"><div class="page-menu"><div class="tsd-navigation settings"><details class="tsd-accordion"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>Settings</h3></summary><div class="tsd-accordion-details"><div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span><ul id="tsd-filter-options"><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></div><div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div><details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>On This Page</h3></summary><div class="tsd-accordion-details"><a href="#btcutil-js"><span>btcutil-<wbr/>js</span></a><ul><li><a href="#prerequisites"><span>Prerequisites</span></a></li><li><a href="#building"><span>Building</span></a></li><li><a href="#usage"><span>Usage</span></a></li><li><ul><li><a href="#nodejs-typescript"><span>Node.js / <wbr/>Type<wbr/>Script</span></a></li><li><a href="#custom-wasm-loading"><span>Custom <wbr/>WASM loading</span></a></li></ul></li><li><a href="#api"><span>API</span></a></li><li><ul><li><a href="#_"><span></span></a></li><li><a href="#_-1"><span></span></a></li><li><a href="#_-2"><span></span></a></li><li><a href="#_-3"><span></span></a></li><li><a href="#_-4"><span></span></a></li><li><a href="#_-5"><span></span></a></li><li><a href="#_-6"><span></span></a></li><li><a href="#_-7"><span></span></a></li><li><a href="#_-8"><span></span></a></li><li><a href="#_-9"><span></span></a></li><li><a href="#_-10"><span></span></a></li><li><a href="#_-11"><span></span></a></li><li><a href="#_-12"><span></span></a></li><li><a href="#_-13"><span></span></a></li><li><a href="#_-14"><span></span></a></li><li><a href="#_-15"><span></span></a></li><li><a href="#_-16"><span></span></a></li><li><a href="#_-17"><span></span></a></li></ul></li><li><a href="#testing"><span>Testing</span></a></li><li><a href="#license"><span>License</span></a></li></ul></div></details></div><div class="site-menu"><nav id="tsd-sidebar-links" class="tsd-navigation"><a href="https://github.com/guggero/btcutil-js" class="tsd-nav-link">GitHub</a></nav><nav class="tsd-navigation"><a href="modules.html">btcutil-js - v0.1.0</a><ul class="tsd-small-nested-navigation" id="tsd-nav-container"><li>Loading...</li></ul></nav></div></div></div><footer><p class="tsd-generator">Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></footer><div class="overlay"></div></body></html>

@@ -26,6 +26,7 @@
     "build:wasm": "./build-wrapper.sh",
     "build:js": "npm run generate:wasm-exec && tsup && cp wasm-wrapper/btcutil.wasm dist/",
     "build": "npm run build:wasm && npm run build:js",
+    "build:docs": "typedoc",
     "test": "node --test test/*.test.mjs",
     "prepublishOnly": "npm run build"
   },
@@ -38,7 +39,14 @@
     "hdkeychain",
     "psbt",
     "wasm",
-    "webassembly"
+    "webassembly",
+    "txscript",
+    "btcec",
+    "btcd",
+    "chaincfg",
+    "schnorr",
+    "ecdsa",
+    "taproot"
   ],
   "author": "Oli <gugger@gmail.com>",
   "license": "MIT",
@@ -53,6 +61,7 @@
   "devDependencies": {
     "@types/node": "^25.5.2",
     "tsup": "^8.0.0",
+    "typedoc": "^0.28.18",
     "typescript": "^5.0.0"
   }
 }
