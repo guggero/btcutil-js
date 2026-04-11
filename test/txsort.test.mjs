@@ -2,6 +2,8 @@ import './setup.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { txsort, tx } from '../dist/index.js';
+import { toHex } from './util.mjs';
+
 
 const legacyTxHex =
   '02000000' +
@@ -18,8 +20,9 @@ const legacyTxHex =
 describe('txsort', () => {
   it('sort returns valid transaction', async () => {
     const sorted = await txsort.sort(legacyTxHex);
+    assert.ok(sorted instanceof Uint8Array);
     assert.ok(sorted.length > 0);
-    const decoded = await tx.decode(sorted);
+    const decoded = await tx.decode(toHex(sorted));
     assert.equal(decoded.inputs.length, 1);
   });
 
@@ -43,7 +46,7 @@ describe('txsort', () => {
 
   it('sort is idempotent', async () => {
     const sorted1 = await txsort.sort(legacyTxHex);
-    const sorted2 = await txsort.sort(sorted1);
-    assert.equal(sorted1, sorted2);
+    const sorted2 = await txsort.sort(toHex(sorted1));
+    assert.equal(toHex(sorted1), toHex(sorted2));
   });
 });

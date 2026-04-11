@@ -4,9 +4,9 @@ import { init, g, unwrap } from './init';
 export const txsort = {
   /** Sort transaction inputs and outputs per BIP-69. Returns sorted tx hex.
    *  Calls Go: txsort.Sort() from btcutil/txsort. */
-  async sort(hexRawTx: string): Promise<string> {
+  async sort(hexRawTx: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txsort.sort(hexRawTx));
+    return unwrap<Uint8Array>(g().txsort.sort(hexRawTx));
   },
 
   /** Check if a transaction's inputs and outputs are sorted per BIP-69.

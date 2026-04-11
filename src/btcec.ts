@@ -28,9 +28,9 @@ export const btcec = {
   },
   /** Parse a public key (compressed 33-byte or uncompressed 65-byte hex) and return normalized compressed form.
    *  Calls Go: btcec.ParsePubKey() from btcd/btcec/v2. */
-  async pubKeyFromBytes(hexPubKey: string): Promise<string> {
+  async pubKeyFromBytes(hexPubKey: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().btcec.pubKeyFromBytes(hexPubKey));
+    return unwrap<Uint8Array>(g().btcec.pubKeyFromBytes(hexPubKey));
   },
   /** Check if a public key is in compressed format.
    *  Calls Go: btcec.IsCompressedPubKey() from btcd/btcec/v2. */
@@ -40,33 +40,33 @@ export const btcec = {
   },
   /** Serialize a public key to uncompressed 65-byte form.
    *  Calls Go: btcec.PublicKey.SerializeUncompressed() from btcd/btcec/v2. */
-  async serializeUncompressed(hexPubKey: string): Promise<string> {
+  async serializeUncompressed(hexPubKey: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().btcec.serializeUncompressed(hexPubKey));
+    return unwrap<Uint8Array>(g().btcec.serializeUncompressed(hexPubKey));
   },
   /** Serialize a public key to compressed 33-byte form.
    *  Calls Go: btcec.PublicKey.SerializeCompressed() from btcd/btcec/v2. */
-  async serializeCompressed(hexPubKey: string): Promise<string> {
+  async serializeCompressed(hexPubKey: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().btcec.serializeCompressed(hexPubKey));
+    return unwrap<Uint8Array>(g().btcec.serializeCompressed(hexPubKey));
   },
 
   // -- ECDH --
 
   /** Compute an ECDH shared secret.
    *  Calls Go: btcec.GenerateSharedSecret() from btcd/btcec/v2. */
-  async generateSharedSecret(hexPrivKey: string, hexPubKey: string): Promise<string> {
+  async generateSharedSecret(hexPrivKey: string, hexPubKey: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().btcec.generateSharedSecret(hexPrivKey, hexPubKey));
+    return unwrap<Uint8Array>(g().btcec.generateSharedSecret(hexPrivKey, hexPubKey));
   },
 
   // -- ECDSA --
 
   /** Sign a 32-byte hash with ECDSA (RFC 6979 deterministic). Returns DER-encoded signature.
    *  Calls Go: ecdsa.Sign() from btcd/btcec/v2/ecdsa. */
-  async ecdsaSign(hexPrivKey: string, hexHash: string): Promise<string> {
+  async ecdsaSign(hexPrivKey: string, hexHash: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().btcec.ecdsaSign(hexPrivKey, hexHash));
+    return unwrap<Uint8Array>(g().btcec.ecdsaSign(hexPrivKey, hexHash));
   },
   /** Verify an ECDSA DER-encoded signature.
    *  Calls Go: ecdsa.Signature.Verify() from btcd/btcec/v2/ecdsa. */
@@ -76,9 +76,9 @@ export const btcec = {
   },
   /** Sign a hash and return a 65-byte compact (recoverable) signature.
    *  Calls Go: ecdsa.SignCompact() from btcd/btcec/v2/ecdsa. */
-  async ecdsaSignCompact(hexPrivKey: string, hexHash: string, isCompressedKey: boolean): Promise<string> {
+  async ecdsaSignCompact(hexPrivKey: string, hexHash: string, isCompressedKey: boolean): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().btcec.ecdsaSignCompact(hexPrivKey, hexHash, isCompressedKey));
+    return unwrap<Uint8Array>(g().btcec.ecdsaSignCompact(hexPrivKey, hexHash, isCompressedKey));
   },
   /** Recover the public key from a compact signature and hash.
    *  Calls Go: ecdsa.RecoverCompact() from btcd/btcec/v2/ecdsa. */
@@ -88,24 +88,24 @@ export const btcec = {
   },
   /** Parse and normalize a BER-encoded ECDSA signature.
    *  Calls Go: ecdsa.ParseSignature() from btcd/btcec/v2/ecdsa. */
-  async ecdsaParseSignature(hexSignature: string): Promise<string> {
+  async ecdsaParseSignature(hexSignature: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().btcec.ecdsaParseSignature(hexSignature));
+    return unwrap<Uint8Array>(g().btcec.ecdsaParseSignature(hexSignature));
   },
   /** Parse a strict DER-encoded ECDSA signature.
    *  Calls Go: ecdsa.ParseDERSignature() from btcd/btcec/v2/ecdsa. */
-  async ecdsaParseDERSignature(hexSignature: string): Promise<string> {
+  async ecdsaParseDERSignature(hexSignature: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().btcec.ecdsaParseDERSignature(hexSignature));
+    return unwrap<Uint8Array>(g().btcec.ecdsaParseDERSignature(hexSignature));
   },
 
   // -- Schnorr (BIP-340) --
 
   /** Sign a 32-byte hash with Schnorr (BIP-340). Returns 64-byte signature.
    *  Calls Go: schnorr.Sign() from btcd/btcec/v2/schnorr. */
-  async schnorrSign(hexPrivKey: string, hexHash: string): Promise<string> {
+  async schnorrSign(hexPrivKey: string, hexHash: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().btcec.schnorrSign(hexPrivKey, hexHash));
+    return unwrap<Uint8Array>(g().btcec.schnorrSign(hexPrivKey, hexHash));
   },
   /** Verify a BIP-340 Schnorr signature. Accepts 32-byte x-only or 33-byte compressed pubkey.
    *  Calls Go: schnorr.Signature.Verify() from btcd/btcec/v2/schnorr. */
@@ -115,20 +115,20 @@ export const btcec = {
   },
   /** Parse a 32-byte x-only public key (BIP-340). Returns 33-byte compressed key.
    *  Calls Go: schnorr.ParsePubKey() from btcd/btcec/v2/schnorr. */
-  async schnorrParsePubKey(hexXOnlyPubKey: string): Promise<string> {
+  async schnorrParsePubKey(hexXOnlyPubKey: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().btcec.schnorrParsePubKey(hexXOnlyPubKey));
+    return unwrap<Uint8Array>(g().btcec.schnorrParsePubKey(hexXOnlyPubKey));
   },
   /** Serialize a public key as 32-byte x-only (BIP-340).
    *  Calls Go: schnorr.SerializePubKey() from btcd/btcec/v2/schnorr. */
-  async schnorrSerializePubKey(hexPubKey: string): Promise<string> {
+  async schnorrSerializePubKey(hexPubKey: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().btcec.schnorrSerializePubKey(hexPubKey));
+    return unwrap<Uint8Array>(g().btcec.schnorrSerializePubKey(hexPubKey));
   },
   /** Parse a 64-byte Schnorr signature.
    *  Calls Go: schnorr.ParseSignature() from btcd/btcec/v2/schnorr. */
-  async schnorrParseSignature(hexSignature: string): Promise<string> {
+  async schnorrParseSignature(hexSignature: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().btcec.schnorrParseSignature(hexSignature));
+    return unwrap<Uint8Array>(g().btcec.schnorrParseSignature(hexSignature));
   },
 };

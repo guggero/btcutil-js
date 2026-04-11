@@ -1,11 +1,11 @@
 export interface Base58CheckDecodeResult {
-  data: string;
+  data: Uint8Array;
   version: number;
 }
 
 export interface Bech32DecodeResult {
   hrp: string;
-  data: string;
+  data: Uint8Array;
 }
 
 export interface AddressInfo {
@@ -18,18 +18,18 @@ export interface AddressInfo {
     | 'p2tr'
     | 'p2pk'
     | 'unknown';
-  scriptAddress: string;
+  scriptAddress: Uint8Array;
   isForNet: boolean;
-  hash160?: string;
+  hash160?: Uint8Array;
   witnessVersion?: number;
-  witnessProgram?: string;
+  witnessProgram?: Uint8Array;
   pubKeyFormat?: number;
 }
 
 export interface WifDecodeResult {
-  privateKey: string;
+  privateKey: Uint8Array;
   compressPubKey: boolean;
-  publicKey: string;
+  publicKey: Uint8Array;
   network: string;
 }
 
@@ -39,9 +39,9 @@ export interface ExtendedKeyInfo {
   depth: number;
   childIndex: number;
   parentFingerprint: number;
-  chainCode: string;
-  version: string;
-  publicKey: string;
+  chainCode: Uint8Array;
+  version: Uint8Array;
+  publicKey: Uint8Array;
 }
 
 export interface VerifyResult {
@@ -52,14 +52,14 @@ export interface VerifyResult {
 export interface TxInput {
   txid: string;
   vout: number;
-  scriptSig: string;
+  scriptSig: Uint8Array;
   sequence: number;
-  witness: string[];
+  witness: Uint8Array[];
 }
 
 export interface TxOutput {
   value: number;
-  scriptPubKey: string;
+  scriptPubKey: Uint8Array;
 }
 
 export interface TxDecodeResult {
@@ -79,12 +79,12 @@ export interface PsbtInputInfo {
   hasFinalScriptWitness: boolean;
   partialSigCount: number;
   witnessUtxoValue?: number;
-  witnessUtxoScript?: string;
+  witnessUtxoScript?: Uint8Array;
 }
 
 export interface PsbtOutputInfo {
   value: number;
-  scriptPubKey: string;
+  scriptPubKey: Uint8Array;
 }
 
 export interface PsbtDecodeResult {
@@ -99,7 +99,7 @@ export interface PsbtDecodeResult {
 }
 
 export interface GcsFilterResult {
-  filter: string;
+  filter: Uint8Array;
   n: number;
 }
 

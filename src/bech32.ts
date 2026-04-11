@@ -52,9 +52,9 @@ export const bech32 = {
     fromBits: number,
     toBits: number,
     pad: boolean,
-  ): Promise<string> {
+  ): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(
+    return unwrap<Uint8Array>(
       g().bech32.convertBits(hexData, fromBits, toBits, pad),
     );
   },

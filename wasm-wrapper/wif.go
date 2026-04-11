@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"syscall/js"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -28,9 +27,9 @@ func wifDecode(_ js.Value, args []js.Value) any {
 	}
 
 	return okResult(map[string]any{
-		"privateKey":     hex.EncodeToString(w.PrivKey.Serialize()),
+		"privateKey":     bytesToJS(w.PrivKey.Serialize()),
 		"compressPubKey": w.CompressPubKey,
-		"publicKey":      hex.EncodeToString(w.SerializePubKey()),
+		"publicKey":      bytesToJS(w.SerializePubKey()),
 		"network":        network,
 	})
 }

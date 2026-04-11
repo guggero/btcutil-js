@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"syscall/js"
 
 	"github.com/btcsuite/btcd/btcutil"
@@ -17,5 +16,5 @@ func hashHash160(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	return okResult(hex.EncodeToString(btcutil.Hash160(b)))
+	return okResult(bytesToJS(btcutil.Hash160(b)))
 }

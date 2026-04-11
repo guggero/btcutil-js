@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"syscall/js"
 
 	"github.com/btcsuite/btcd/btcutil"
@@ -59,12 +58,12 @@ func txDecode(_ js.Value, args []js.Value) any {
 	for i, txIn := range msgTx.TxIn {
 		witness := make([]any, len(txIn.Witness))
 		for j, w := range txIn.Witness {
-			witness[j] = hex.EncodeToString(w)
+			witness[j] = bytesToJS(w)
 		}
 		inputs[i] = map[string]any{
 			"txid":      txIn.PreviousOutPoint.Hash.String(),
 			"vout":      int(txIn.PreviousOutPoint.Index),
-			"scriptSig": hex.EncodeToString(txIn.SignatureScript),
+			"scriptSig": bytesToJS(txIn.SignatureScript),
 			"sequence":  int64(txIn.Sequence),
 			"witness":   witness,
 		}
@@ -74,7 +73,7 @@ func txDecode(_ js.Value, args []js.Value) any {
 	for i, txOut := range msgTx.TxOut {
 		outputs[i] = map[string]any{
 			"value":        txOut.Value,
-			"scriptPubKey": hex.EncodeToString(txOut.PkScript),
+			"scriptPubKey": bytesToJS(txOut.PkScript),
 		}
 	}
 

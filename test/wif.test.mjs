@@ -2,6 +2,8 @@ import './setup.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { wif } from '../dist/index.js';
+import { toHex } from './util.mjs';
+
 
 describe('wif', () => {
   it('encode / decode round-trip', async () => {
@@ -11,9 +13,11 @@ describe('wif', () => {
     assert.ok(encoded.startsWith('K') || encoded.startsWith('L'));
 
     const decoded = await wif.decode(encoded);
-    assert.equal(decoded.privateKey, privKey);
+    assert.ok(decoded.privateKey instanceof Uint8Array);
+    assert.equal(toHex(decoded.privateKey), privKey);
     assert.equal(decoded.compressPubKey, true);
     assert.equal(decoded.network, 'mainnet');
+    assert.ok(decoded.publicKey instanceof Uint8Array);
     assert.ok(decoded.publicKey.length > 0);
   });
 

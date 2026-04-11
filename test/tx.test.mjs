@@ -2,6 +2,8 @@ import './setup.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { tx } from '../dist/index.js';
+import { toHex } from './util.mjs';
+
 
 const legacyTxHex =
   '02000000' +
@@ -34,7 +36,7 @@ const segwitTxHex =
 describe('tx', () => {
   it('hash returns txid (legacy)', async () => {
     const txid = await tx.hash(legacyTxHex);
-    assert.equal(txid.length, 64);
+    assert.equal(txid.length, 64); // txid is still a display string
   });
 
   it('hash returns txid (segwit)', async () => {
@@ -59,14 +61,15 @@ describe('tx', () => {
     assert.equal(decoded.version, 2);
     assert.equal(decoded.inputs.length, 1);
     assert.equal(decoded.outputs.length, 1);
-    assert.equal(decoded.txid.length, 64);
-    assert.equal(decoded.wtxid.length, 64);
+    assert.equal(decoded.txid.length, 64); // txid is still a string
+    assert.equal(decoded.wtxid.length, 64); // wtxid is still a string
     assert.equal(decoded.inputs[0].txid.length, 64);
     assert.equal(typeof decoded.inputs[0].sequence, 'number');
     assert.equal(decoded.outputs[0].value, 1000);
     assert.equal(decoded.inputs[0].witness.length, 2);
-    assert.equal(decoded.inputs[0].witness[0], 'deadbeef');
-    assert.equal(decoded.inputs[0].witness[1], 'cafebabe');
+    assert.ok(decoded.inputs[0].witness[0] instanceof Uint8Array);
+    assert.equal(toHex(decoded.inputs[0].witness[0]), 'deadbeef');
+    assert.equal(toHex(decoded.inputs[0].witness[1]), 'cafebabe');
   });
 
   it('hash rejects invalid hex', async () => {

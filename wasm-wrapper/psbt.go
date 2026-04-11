@@ -4,7 +4,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/hex"
 	"syscall/js"
 
 	btcpsbt "github.com/btcsuite/btcd/btcutil/psbt"
@@ -31,7 +30,7 @@ func psbtDecode(_ js.Value, args []js.Value) any {
 		}
 		if pIn.WitnessUtxo != nil {
 			inp["witnessUtxoValue"] = pIn.WitnessUtxo.Value
-			inp["witnessUtxoScript"] = hex.EncodeToString(
+			inp["witnessUtxoScript"] = bytesToJS(
 				pIn.WitnessUtxo.PkScript,
 			)
 		}
@@ -42,7 +41,7 @@ func psbtDecode(_ js.Value, args []js.Value) any {
 	for i, txOut := range pkt.UnsignedTx.TxOut {
 		outputs[i] = map[string]any{
 			"value":        txOut.Value,
-			"scriptPubKey": hex.EncodeToString(txOut.PkScript),
+			"scriptPubKey": bytesToJS(txOut.PkScript),
 		}
 	}
 
@@ -116,7 +115,7 @@ func psbtFromBase64(_ js.Value, args []js.Value) any {
 	if err := pkt.Serialize(&buf); err != nil {
 		return errfResult("serialize: %s", err)
 	}
-	return okResult(hex.EncodeToString(buf.Bytes()))
+	return okResult(bytesToJS(buf.Bytes()))
 }
 
 func psbtToBase64(_ js.Value, args []js.Value) any {

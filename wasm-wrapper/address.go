@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"syscall/js"
 
 	"github.com/btcsuite/btcd/btcutil"
@@ -26,29 +25,29 @@ func addressDecode(_ js.Value, args []js.Value) any {
 
 	info := map[string]any{
 		"address":       addr.EncodeAddress(),
-		"scriptAddress": hex.EncodeToString(addr.ScriptAddress()),
+		"scriptAddress": bytesToJS(addr.ScriptAddress()),
 		"isForNet":      addr.IsForNet(params),
 	}
 
 	switch a := addr.(type) {
 	case *btcutil.AddressPubKeyHash:
 		info["type"] = "p2pkh"
-		info["hash160"] = hex.EncodeToString(a.Hash160()[:])
+		info["hash160"] = bytesToJS(a.Hash160()[:])
 	case *btcutil.AddressScriptHash:
 		info["type"] = "p2sh"
-		info["hash160"] = hex.EncodeToString(a.Hash160()[:])
+		info["hash160"] = bytesToJS(a.Hash160()[:])
 	case *btcutil.AddressTaproot:
 		info["type"] = "p2tr"
 		info["witnessVersion"] = int(a.WitnessVersion())
-		info["witnessProgram"] = hex.EncodeToString(a.WitnessProgram())
+		info["witnessProgram"] = bytesToJS(a.WitnessProgram())
 	case *btcutil.AddressWitnessPubKeyHash:
 		info["type"] = "p2wpkh"
 		info["witnessVersion"] = int(a.WitnessVersion())
-		info["witnessProgram"] = hex.EncodeToString(a.WitnessProgram())
+		info["witnessProgram"] = bytesToJS(a.WitnessProgram())
 	case *btcutil.AddressWitnessScriptHash:
 		info["type"] = "p2wsh"
 		info["witnessVersion"] = int(a.WitnessVersion())
-		info["witnessProgram"] = hex.EncodeToString(a.WitnessProgram())
+		info["witnessProgram"] = bytesToJS(a.WitnessProgram())
 	case *btcutil.AddressPubKey:
 		info["type"] = "p2pk"
 		info["pubKeyFormat"] = int(a.Format())

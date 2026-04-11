@@ -48,16 +48,16 @@ export const hdkeychain = {
 
   /** Generate a random seed of the given length in bytes (default: 32).
    *  Calls Go: hdkeychain.GenerateSeed() from btcutil/hdkeychain. */
-  async generateSeed(length?: number): Promise<string> {
+  async generateSeed(length?: number): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().hdkeychain.generateSeed(length));
+    return unwrap<Uint8Array>(g().hdkeychain.generateSeed(length));
   },
 
   /** Get the compressed public key (hex) for an extended key.
    *  Calls Go: hdkeychain.ExtendedKey.ECPubKey() from btcutil/hdkeychain. */
-  async publicKey(key: string): Promise<string> {
+  async publicKey(key: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().hdkeychain.publicKey(key));
+    return unwrap<Uint8Array>(g().hdkeychain.publicKey(key));
   },
 
   /** Get the P2PKH address for an extended key.

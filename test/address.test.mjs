@@ -2,6 +2,8 @@ import './setup.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { address } from '../dist/index.js';
+import { toHex } from './util.mjs';
+
 
 describe('address', () => {
   it('decode P2WPKH address', async () => {
@@ -10,6 +12,7 @@ describe('address', () => {
     assert.equal(info.type, 'p2wpkh');
     assert.equal(info.address, addr);
     assert.equal(info.witnessVersion, 0);
+    assert.ok(info.witnessProgram instanceof Uint8Array);
     assert.ok(info.witnessProgram.length > 0);
   });
 
@@ -36,7 +39,8 @@ describe('address', () => {
     const addr = '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2';
     const info = await address.decode(addr);
     assert.equal(info.type, 'p2pkh');
-    assert.ok(info.hash160.length === 40);
+    assert.ok(info.hash160 instanceof Uint8Array);
+    assert.ok(info.hash160.length === 20);
   });
 
   it('fromWitnessPubKeyHash round-trip', async () => {
@@ -44,7 +48,7 @@ describe('address', () => {
     const addr = await address.fromWitnessPubKeyHash(program);
     const info = await address.decode(addr);
     assert.equal(info.type, 'p2wpkh');
-    assert.equal(info.witnessProgram, program);
+    assert.equal(toHex(info.witnessProgram), program);
   });
 
   it('fromTaproot round-trip', async () => {
@@ -53,7 +57,7 @@ describe('address', () => {
     const addr = await address.fromTaproot(program);
     const info = await address.decode(addr);
     assert.equal(info.type, 'p2tr');
-    assert.equal(info.witnessProgram, program);
+    assert.equal(toHex(info.witnessProgram), program);
   });
 
   it('fromPubKeyHash creates valid P2PKH', async () => {

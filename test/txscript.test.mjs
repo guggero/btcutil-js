@@ -2,6 +2,8 @@ import './setup.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { txscript, address, btcec, hash } from '../dist/index.js';
+import { toHex } from './util.mjs';
+
 
 // A P2WPKH script: OP_0 <20-byte-hash>
 const p2wpkhScript = '0014751e76e8199196d454941c45d1b3a323f1433bd6';
@@ -56,7 +58,8 @@ describe('txscript: script analysis', () => {
   it('extractWitnessProgramInfo', async () => {
     const info = await txscript.extractWitnessProgramInfo(p2wpkhScript);
     assert.equal(info.version, 0);
-    assert.equal(info.program, '751e76e8199196d454941c45d1b3a323f1433bd6');
+    assert.ok(info.program instanceof Uint8Array);
+    assert.equal(toHex(info.program), '751e76e8199196d454941c45d1b3a323f1433bd6');
   });
   it('extractPkScriptAddrs', async () => {
     const result = await txscript.extractPkScriptAddrs(p2wpkhScript);
@@ -68,6 +71,8 @@ describe('txscript: script analysis', () => {
   it('pushedData', async () => {
     const data = await txscript.pushedData(p2wpkhScript);
     assert.ok(data.length > 0);
+    // Each element should be a Uint8Array
+    assert.ok(data[0] instanceof Uint8Array);
   });
   it('getSigOpCount', async () => {
     const count = await txscript.getSigOpCount(p2pkhScript);
@@ -84,64 +89,75 @@ describe('txscript: script creation', () => {
   it('payToAddrScript creates correct P2WPKH script', async () => {
     const addr = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
     const script = await txscript.payToAddrScript(addr);
-    assert.equal(await txscript.isPayToWitnessPubKeyHash(script), true);
+    assert.ok(script instanceof Uint8Array);
+    assert.equal(await txscript.isPayToWitnessPubKeyHash(toHex(script)), true);
   });
   it('nullDataScript', async () => {
     const script = await txscript.nullDataScript('deadbeef');
-    assert.equal(await txscript.isNullData(script), true);
+    assert.ok(script instanceof Uint8Array);
+    assert.equal(await txscript.isNullData(toHex(script)), true);
   });
   it('payToTaprootScript', async () => {
     const { publicKey } = await btcec.newPrivateKey();
-    const xOnly = await btcec.schnorrSerializePubKey(publicKey);
-    const script = await txscript.payToTaprootScript(xOnly);
-    assert.equal(await txscript.isPayToTaproot(script), true);
+    const xOnly = await btcec.schnorrSerializePubKey(toHex(publicKey));
+    const script = await txscript.payToTaprootScript(toHex(xOnly));
+    assert.ok(script instanceof Uint8Array);
+    assert.equal(await txscript.isPayToTaproot(toHex(script)), true);
   });
 });
 
 describe('txscript: taproot', () => {
   it('computeTaprootKeyNoScript', async () => {
     const { publicKey } = await btcec.newPrivateKey();
-    const xOnly = await btcec.schnorrSerializePubKey(publicKey);
-    const outputKey = await txscript.computeTaprootKeyNoScript(xOnly);
-    assert.equal(outputKey.length, 64); // 32 bytes x-only
+    const xOnly = await btcec.schnorrSerializePubKey(toHex(publicKey));
+    const outputKey = await txscript.computeTaprootKeyNoScript(toHex(xOnly));
+    assert.ok(outputKey instanceof Uint8Array);
+    assert.equal(outputKey.length, 32); // 32 bytes x-only
   });
   it('computeTaprootOutputKey with script root', async () => {
     const { publicKey } = await btcec.newPrivateKey();
-    const xOnly = await btcec.schnorrSerializePubKey(publicKey);
+    const xOnly = await btcec.schnorrSerializePubKey(toHex(publicKey));
     const scriptRoot = '0000000000000000000000000000000000000000000000000000000000000000';
-    const outputKey = await txscript.computeTaprootOutputKey(xOnly, scriptRoot);
-    assert.equal(outputKey.length, 64);
+    const outputKey = await txscript.computeTaprootOutputKey(toHex(xOnly), scriptRoot);
+    assert.ok(outputKey instanceof Uint8Array);
+    assert.equal(outputKey.length, 32);
     // With a script root, the output key should differ from key-only
-    const keyOnly = await txscript.computeTaprootKeyNoScript(xOnly);
-    assert.notEqual(outputKey, keyOnly);
+    const keyOnly = await txscript.computeTaprootKeyNoScript(toHex(xOnly));
+    assert.notEqual(toHex(outputKey), toHex(keyOnly));
   });
   it('tweakTaprootPrivKey round-trip', async () => {
     const { privateKey, publicKey } = await btcec.newPrivateKey();
-    const xOnly = await btcec.schnorrSerializePubKey(publicKey);
-    const outputKey = await txscript.computeTaprootKeyNoScript(xOnly);
-    const tweakedPriv = await txscript.tweakTaprootPrivKey(privateKey);
+    const xOnly = await btcec.schnorrSerializePubKey(toHex(publicKey));
+    const outputKey = await txscript.computeTaprootKeyNoScript(toHex(xOnly));
+    const tweakedPriv = await txscript.tweakTaprootPrivKey(toHex(privateKey));
+    assert.ok(tweakedPriv instanceof Uint8Array);
     // The tweaked privkey's pubkey should match the output key
-    const { publicKey: tweakedPub } = await btcec.privKeyFromBytes(tweakedPriv);
-    const tweakedXOnly = await btcec.schnorrSerializePubKey(tweakedPub);
-    assert.equal(tweakedXOnly, outputKey);
+    const { publicKey: tweakedPub } = await btcec.privKeyFromBytes(toHex(tweakedPriv));
+    const tweakedXOnly = await btcec.schnorrSerializePubKey(toHex(tweakedPub));
+    assert.equal(toHex(tweakedXOnly), toHex(outputKey));
   });
   it('assembleTaprootScriptTree', async () => {
     const { publicKey } = await btcec.newPrivateKey();
-    const xOnly = await btcec.schnorrSerializePubKey(publicKey);
+    const xOnly = await btcec.schnorrSerializePubKey(toHex(publicKey));
     // Two simple OP_TRUE leaves
     const leaves = [
       { script: '51' }, // OP_TRUE
       { script: '52' }, // OP_2
     ];
-    const tree = await txscript.assembleTaprootScriptTree(xOnly, leaves);
-    assert.equal(tree.outputKey.length, 64);
-    assert.equal(tree.merkleRoot.length, 64);
+    const tree = await txscript.assembleTaprootScriptTree(toHex(xOnly), leaves);
+    assert.ok(tree.outputKey instanceof Uint8Array);
+    assert.equal(tree.outputKey.length, 32);
+    assert.ok(tree.merkleRoot instanceof Uint8Array);
+    assert.equal(tree.merkleRoot.length, 32);
     assert.equal(tree.leaves.length, 2);
+    assert.ok(tree.leaves[0].controlBlock instanceof Uint8Array);
     assert.ok(tree.leaves[0].controlBlock.length > 0);
-    assert.ok(tree.leaves[0].leafHash.length === 64);
+    assert.ok(tree.leaves[0].leafHash instanceof Uint8Array);
+    assert.ok(tree.leaves[0].leafHash.length === 32);
     // Control block should be parseable
-    const cb = await txscript.parseControlBlock(tree.leaves[0].controlBlock);
-    assert.equal(cb.internalKey, xOnly);
+    const cb = await txscript.parseControlBlock(toHex(tree.leaves[0].controlBlock));
+    assert.ok(cb.internalKey instanceof Uint8Array);
+    assert.equal(toHex(cb.internalKey), toHex(xOnly));
   });
 });
 
@@ -172,7 +188,7 @@ describe('txscript: negative cases', () => {
   it('multiSigScript rejects nRequired > nKeys', async () => {
     const { publicKey } = await btcec.newPrivateKey();
     // Only 1 key but require 2 signatures.
-    await assert.rejects(() => txscript.multiSigScript([publicKey], 2));
+    await assert.rejects(() => txscript.multiSigScript([toHex(publicKey)], 2));
   });
 
   it('nullDataScript rejects too-large data', async () => {

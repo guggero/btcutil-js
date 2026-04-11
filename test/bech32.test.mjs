@@ -2,6 +2,8 @@ import './setup.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { bech32 } from '../dist/index.js';
+import { toHex } from './util.mjs';
+
 
 describe('bech32', () => {
   it('encodeFromBase256 / decodeToBase256 round-trip', async () => {
@@ -11,14 +13,17 @@ describe('bech32', () => {
     assert.ok(encoded.startsWith('bc1'));
     const result = await bech32.decodeToBase256(encoded);
     assert.equal(result.hrp, hrp);
-    assert.equal(result.data, hex);
+    assert.ok(result.data instanceof Uint8Array);
+    assert.equal(toHex(result.data), hex);
   });
 
   it('convertBits 8→5→8', async () => {
     const original = 'deadbeef';
     const bits5 = await bech32.convertBits(original, 8, 5, true);
-    const back = await bech32.convertBits(bits5, 5, 8, false);
-    assert.equal(back, original);
+    assert.ok(bits5 instanceof Uint8Array);
+    const back = await bech32.convertBits(toHex(bits5), 5, 8, false);
+    assert.ok(back instanceof Uint8Array);
+    assert.equal(toHex(back), original);
   });
 
   it('decode rejects invalid bech32', async () => {

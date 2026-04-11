@@ -2,6 +2,7 @@ import './setup.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { psbt } from '../dist/index.js';
+import { toHex } from './util.mjs';
 
 // A minimal valid PSBT (base64) with 1 unsigned input and 1 output.
 // Created by hand-encoding the BIP-174 format:
@@ -87,17 +88,21 @@ describe('psbt', () => {
     );
   });
 
-  it('fromBase64 returns hex bytes', async () => {
-    const hex = await psbt.fromBase64(psbtBase64);
-    assert.equal(typeof hex, 'string');
-    assert.ok(hex.length > 0);
-    // Should start with the PSBT magic in hex: 70736274ff
-    assert.ok(hex.startsWith('70736274ff'));
+  it('fromBase64 returns raw bytes', async () => {
+    const result = await psbt.fromBase64(psbtBase64);
+    assert.ok(result instanceof Uint8Array);
+    assert.ok(result.length > 0);
+    // Should start with the PSBT magic bytes: 'p'=0x70, 's'=0x73, 'b'=0x62, 't'=0x74, 0xff
+    assert.equal(result[0], 0x70);
+    assert.equal(result[1], 0x73);
+    assert.equal(result[2], 0x62);
+    assert.equal(result[3], 0x74);
+    assert.equal(result[4], 0xff);
   });
 
   it('toBase64 round-trips with fromBase64', async () => {
-    const hex = await psbt.fromBase64(psbtBase64);
-    const b64 = await psbt.toBase64(hex);
+    const result = await psbt.fromBase64(psbtBase64);
+    const b64 = await psbt.toBase64(toHex(result));
     assert.equal(b64, psbtBase64);
   });
 

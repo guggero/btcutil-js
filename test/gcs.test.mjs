@@ -2,6 +2,8 @@ import './setup.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { gcs } from '../dist/index.js';
+import { toHex } from './util.mjs';
+
 
 describe('gcs', () => {
   const p = 20;
@@ -11,11 +13,12 @@ describe('gcs', () => {
   it('buildFilter and match round-trip', async () => {
     const items = ['deadbeef', 'cafebabe', '01020304'];
     const result = await gcs.buildFilter(p, m, key, items);
+    assert.ok(result.filter instanceof Uint8Array);
     assert.ok(result.filter.length > 0);
     assert.equal(result.n, 3);
 
     const matched = await gcs.match(
-      result.filter, result.n, p, m, key, 'deadbeef',
+      toHex(result.filter), result.n, p, m, key, 'deadbeef',
     );
     assert.equal(matched, true);
   });
@@ -25,7 +28,7 @@ describe('gcs', () => {
     const result = await gcs.buildFilter(p, m, key, items);
 
     const matched = await gcs.match(
-      result.filter, result.n, p, m, key, 'ffffffff',
+      toHex(result.filter), result.n, p, m, key, 'ffffffff',
     );
     assert.equal(matched, false);
   });
@@ -35,7 +38,7 @@ describe('gcs', () => {
     const result = await gcs.buildFilter(p, m, key, items);
 
     const matched = await gcs.matchAny(
-      result.filter, result.n, p, m, key,
+      toHex(result.filter), result.n, p, m, key,
       ['ffffffff', 'cafebabe'],
     );
     assert.equal(matched, true);
@@ -46,7 +49,7 @@ describe('gcs', () => {
     const result = await gcs.buildFilter(p, m, key, items);
 
     const matched = await gcs.matchAny(
-      result.filter, result.n, p, m, key,
+      toHex(result.filter), result.n, p, m, key,
       ['ffffffff', 'eeeeeeee'],
     );
     assert.equal(matched, false);
@@ -68,6 +71,6 @@ describe('gcs', () => {
   it('match rejects wrong key length', async () => {
     const items = ['deadbeef'];
     const result = await gcs.buildFilter(p, m, key, items);
-    await assert.rejects(() => gcs.match(result.filter, result.n, p, m, 'short', 'deadbeef'));
+    await assert.rejects(() => gcs.match(toHex(result.filter), result.n, p, m, 'short', 'deadbeef'));
   });
 });

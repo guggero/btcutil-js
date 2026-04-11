@@ -2,6 +2,8 @@ import './setup.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { hdkeychain } from '../dist/index.js';
+import { toHex } from './util.mjs';
+
 
 describe('hdkeychain', () => {
   const testSeed = '000102030405060708090a0b0c0d0e0f';
@@ -17,7 +19,8 @@ describe('hdkeychain', () => {
     assert.equal(info.isPrivate, true);
     assert.equal(info.depth, 0);
     assert.equal(info.childIndex, 0);
-    assert.ok(info.publicKey.length === 66);
+    assert.ok(info.publicKey instanceof Uint8Array);
+    assert.ok(info.publicKey.length === 33);
   });
 
   it('derive produces child key', async () => {
@@ -59,15 +62,17 @@ describe('hdkeychain', () => {
   it('generateSeed produces random bytes', async () => {
     const seed1 = await hdkeychain.generateSeed();
     const seed2 = await hdkeychain.generateSeed();
-    assert.equal(seed1.length, 64);
-    assert.notEqual(seed1, seed2);
+    assert.ok(seed1 instanceof Uint8Array);
+    assert.equal(seed1.length, 32);
+    assert.notEqual(toHex(seed1), toHex(seed2));
   });
 
   it('publicKey returns compressed key', async () => {
     const xprv = await hdkeychain.newMaster(testSeed);
     const pubKey = await hdkeychain.publicKey(xprv);
-    assert.equal(pubKey.length, 66);
-    assert.ok(pubKey.startsWith('02') || pubKey.startsWith('03'));
+    assert.ok(pubKey instanceof Uint8Array);
+    assert.equal(pubKey.length, 33);
+    assert.ok(pubKey[0] === 0x02 || pubKey[0] === 0x03);
   });
 
   it('address returns P2PKH address', async () => {

@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"syscall/js"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -21,8 +20,8 @@ func btcecNewPrivateKey(_ js.Value, args []js.Value) any {
 		return errfResult("newPrivateKey: %s", err)
 	}
 	return okResult(map[string]any{
-		"privateKey": hex.EncodeToString(privKey.Serialize()),
-		"publicKey":  hex.EncodeToString(privKey.PubKey().SerializeCompressed()),
+		"privateKey": bytesToJS(privKey.Serialize()),
+		"publicKey":  bytesToJS(privKey.PubKey().SerializeCompressed()),
 	})
 }
 
@@ -36,8 +35,8 @@ func btcecPrivKeyFromBytes(_ js.Value, args []js.Value) any {
 	}
 	privKey, pubKey := btcec.PrivKeyFromBytes(b)
 	return okResult(map[string]any{
-		"privateKey": hex.EncodeToString(privKey.Serialize()),
-		"publicKey":  hex.EncodeToString(pubKey.SerializeCompressed()),
+		"privateKey": bytesToJS(privKey.Serialize()),
+		"publicKey":  bytesToJS(pubKey.SerializeCompressed()),
 	})
 }
 
@@ -53,7 +52,7 @@ func btcecPubKeyFromBytes(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("parsePubKey: %s", err)
 	}
-	return okResult(hex.EncodeToString(key.SerializeCompressed()))
+	return okResult(bytesToJS(key.SerializeCompressed()))
 }
 
 func btcecIsCompressedPubKey(_ js.Value, args []js.Value) any {
@@ -79,7 +78,7 @@ func btcecSerializeUncompressed(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("parsePubKey: %s", err)
 	}
-	return okResult(hex.EncodeToString(key.SerializeUncompressed()))
+	return okResult(bytesToJS(key.SerializeUncompressed()))
 }
 
 func btcecSerializeCompressed(_ js.Value, args []js.Value) any {
@@ -94,7 +93,7 @@ func btcecSerializeCompressed(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("parsePubKey: %s", err)
 	}
-	return okResult(hex.EncodeToString(key.SerializeCompressed()))
+	return okResult(bytesToJS(key.SerializeCompressed()))
 }
 
 // ---------------------------------------------------------------------------
@@ -119,7 +118,7 @@ func btcecGenerateSharedSecret(_ js.Value, args []js.Value) any {
 		return errfResult("parsePubKey: %s", err)
 	}
 	secret := btcec.GenerateSharedSecret(privKey, pubKey)
-	return okResult(hex.EncodeToString(secret))
+	return okResult(bytesToJS(secret))
 }
 
 // ---------------------------------------------------------------------------
@@ -140,7 +139,7 @@ func btcecEcdsaSign(_ js.Value, args []js.Value) any {
 	}
 	privKey, _ := btcec.PrivKeyFromBytes(privBytes)
 	sig := ecdsa.Sign(privKey, hashBytes)
-	return okResult(hex.EncodeToString(sig.Serialize()))
+	return okResult(bytesToJS(sig.Serialize()))
 }
 
 func btcecEcdsaVerify(_ js.Value, args []js.Value) any {
@@ -185,7 +184,7 @@ func btcecEcdsaSignCompact(_ js.Value, args []js.Value) any {
 	}
 	privKey, _ := btcec.PrivKeyFromBytes(privBytes)
 	compact := ecdsa.SignCompact(privKey, hashBytes, args[2].Bool())
-	return okResult(hex.EncodeToString(compact))
+	return okResult(bytesToJS(compact))
 }
 
 func btcecEcdsaRecoverCompact(_ js.Value, args []js.Value) any {
@@ -205,7 +204,7 @@ func btcecEcdsaRecoverCompact(_ js.Value, args []js.Value) any {
 		return errfResult("recoverCompact: %s", err)
 	}
 	return okResult(map[string]any{
-		"publicKey":  hex.EncodeToString(pubKey.SerializeCompressed()),
+		"publicKey":  bytesToJS(pubKey.SerializeCompressed()),
 		"compressed": compressed,
 	})
 }
@@ -222,7 +221,7 @@ func btcecEcdsaParseSignature(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("parseSignature: %s", err)
 	}
-	return okResult(hex.EncodeToString(sig.Serialize()))
+	return okResult(bytesToJS(sig.Serialize()))
 }
 
 func btcecEcdsaParseDERSignature(_ js.Value, args []js.Value) any {
@@ -237,7 +236,7 @@ func btcecEcdsaParseDERSignature(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("parseDERSignature: %s", err)
 	}
-	return okResult(hex.EncodeToString(sig.Serialize()))
+	return okResult(bytesToJS(sig.Serialize()))
 }
 
 // ---------------------------------------------------------------------------
@@ -261,7 +260,7 @@ func btcecSchnorrSign(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("schnorrSign: %s", err)
 	}
-	return okResult(hex.EncodeToString(sig.Serialize()))
+	return okResult(bytesToJS(sig.Serialize()))
 }
 
 func btcecSchnorrVerify(_ js.Value, args []js.Value) any {
@@ -307,7 +306,7 @@ func btcecSchnorrParsePubKey(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("schnorrParsePubKey: %s", err)
 	}
-	return okResult(hex.EncodeToString(key.SerializeCompressed()))
+	return okResult(bytesToJS(key.SerializeCompressed()))
 }
 
 func btcecSchnorrSerializePubKey(_ js.Value, args []js.Value) any {
@@ -322,7 +321,7 @@ func btcecSchnorrSerializePubKey(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("parsePubKey: %s", err)
 	}
-	return okResult(hex.EncodeToString(btcschnorr.SerializePubKey(key)))
+	return okResult(bytesToJS(btcschnorr.SerializePubKey(key)))
 }
 
 func btcecSchnorrParseSignature(_ js.Value, args []js.Value) any {
@@ -337,5 +336,5 @@ func btcecSchnorrParseSignature(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("schnorrParseSignature: %s", err)
 	}
-	return okResult(hex.EncodeToString(sig.Serialize()))
+	return okResult(bytesToJS(sig.Serialize()))
 }

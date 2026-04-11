@@ -12,9 +12,9 @@ export const base58 = {
 
   /** Decode a base58 string to bytes (hex).
    *  Calls Go: base58.Decode() from btcutil/base58. */
-  async decode(str: string): Promise<string> {
+  async decode(str: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().base58.decode(str));
+    return unwrap<Uint8Array>(g().base58.decode(str));
   },
 
   /** Encode bytes (hex) with a version byte and checksum.

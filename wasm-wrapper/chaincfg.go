@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"syscall/js"
 
 	"github.com/btcsuite/btcd/chaincfg"
@@ -24,8 +23,8 @@ func chaincfgGetParams(_ js.Value, args []js.Value) any {
 		"pubKeyHashAddrID":         int(params.PubKeyHashAddrID),
 		"scriptHashAddrID":         int(params.ScriptHashAddrID),
 		"privateKeyID":             int(params.PrivateKeyID),
-		"hdPrivateKeyID":           hex.EncodeToString(params.HDPrivateKeyID[:]),
-		"hdPublicKeyID":            hex.EncodeToString(params.HDPublicKeyID[:]),
+		"hdPrivateKeyID":           bytesToJS(params.HDPrivateKeyID[:]),
+		"hdPublicKeyID":            bytesToJS(params.HDPublicKeyID[:]),
 		"hdCoinType":               int(params.HDCoinType),
 		"coinbaseMaturity":         int(params.CoinbaseMaturity),
 		"subsidyReductionInterval": int(params.SubsidyReductionInterval),
@@ -65,5 +64,5 @@ func chaincfgHDPrivateKeyToPublicKeyID(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("hdPrivateKeyToPublicKeyID: %s", err)
 	}
-	return okResult(hex.EncodeToString(pubID))
+	return okResult(bytesToJS(pubID))
 }

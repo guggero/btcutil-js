@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"syscall/js"
 
 	bech32pkg "github.com/btcsuite/btcd/btcutil/bech32"
@@ -49,7 +48,7 @@ func bech32Decode(_ js.Value, args []js.Value) any {
 	}
 	return okResult(map[string]any{
 		"hrp":  hrp,
-		"data": hex.EncodeToString(data),
+		"data": bytesToJS(data),
 	})
 }
 
@@ -63,7 +62,7 @@ func bech32DecodeNoLimit(_ js.Value, args []js.Value) any {
 	}
 	return okResult(map[string]any{
 		"hrp":  hrp,
-		"data": hex.EncodeToString(data),
+		"data": bytesToJS(data),
 	})
 }
 
@@ -92,7 +91,7 @@ func bech32DecodeToBase256(_ js.Value, args []js.Value) any {
 	}
 	return okResult(map[string]any{
 		"hrp":  hrp,
-		"data": hex.EncodeToString(data),
+		"data": bytesToJS(data),
 	})
 }
 
@@ -113,5 +112,5 @@ func bech32ConvertBits(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("convertBits: %s", err)
 	}
-	return okResult(hex.EncodeToString(result))
+	return okResult(bytesToJS(result))
 }

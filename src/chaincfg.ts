@@ -43,8 +43,8 @@ export const chaincfg = {
   },
   /** Convert an HD private key version to its public counterpart.
    *  Calls Go: chaincfg.HDPrivateKeyToPublicKeyID() from btcd/chaincfg. */
-  async hdPrivateKeyToPublicKeyID(hexPrivateKeyID: string): Promise<string> {
+  async hdPrivateKeyToPublicKeyID(hexPrivateKeyID: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().chaincfg.hdPrivateKeyToPublicKeyID(hexPrivateKeyID));
+    return unwrap<Uint8Array>(g().chaincfg.hdPrivateKeyToPublicKeyID(hexPrivateKeyID));
   },
 };

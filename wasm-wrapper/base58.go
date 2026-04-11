@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"syscall/js"
 
 	"github.com/btcsuite/btcd/btcutil/base58"
@@ -24,7 +23,7 @@ func base58Decode(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "str"); e != nil {
 		return e
 	}
-	return okResult(hex.EncodeToString(base58.Decode(args[0].String())))
+	return okResult(bytesToJS(base58.Decode(args[0].String())))
 }
 
 func base58CheckEncode(_ js.Value, args []js.Value) any {
@@ -48,7 +47,7 @@ func base58CheckDecode(_ js.Value, args []js.Value) any {
 		return errfResult("checkDecode failed: %s", err)
 	}
 	return okResult(map[string]any{
-		"data":    hex.EncodeToString(data),
+		"data":    bytesToJS(data),
 		"version": int(version),
 	})
 }

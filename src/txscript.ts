@@ -146,9 +146,9 @@ export const txscript = {
   },
   /** Extract all data pushes from a script.
    *  Calls Go: txscript.PushedData() from btcd/txscript. */
-  async pushedData(hexScript: string): Promise<string[]> {
+  async pushedData(hexScript: string): Promise<Uint8Array[]> {
     await init();
-    return unwrap<string[]>(g().txscript.pushedData(hexScript));
+    return unwrap<Uint8Array[]>(g().txscript.pushedData(hexScript));
   },
   /** Count signature operations in a script.
    *  Calls Go: txscript.GetSigOpCount() from btcd/txscript. */
@@ -179,48 +179,48 @@ export const txscript = {
 
   /** Create a pkScript that pays to the given address.
    *  Calls Go: txscript.PayToAddrScript() from btcd/txscript. */
-  async payToAddrScript(address: string, network: Network = 'mainnet'): Promise<string> {
+  async payToAddrScript(address: string, network: Network = 'mainnet'): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.payToAddrScript(address, network));
+    return unwrap<Uint8Array>(g().txscript.payToAddrScript(address, network));
   },
   /** Create an OP_RETURN null data script.
    *  Calls Go: txscript.NullDataScript() from btcd/txscript. */
-  async nullDataScript(hexData: string): Promise<string> {
+  async nullDataScript(hexData: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.nullDataScript(hexData));
+    return unwrap<Uint8Array>(g().txscript.nullDataScript(hexData));
   },
   /** Create a P2TR script from a 32-byte x-only public key (hex).
    *  Calls Go: txscript.PayToTaprootScript() from btcd/txscript. */
-  async payToTaprootScript(hexPubKey: string): Promise<string> {
+  async payToTaprootScript(hexPubKey: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.payToTaprootScript(hexPubKey));
+    return unwrap<Uint8Array>(g().txscript.payToTaprootScript(hexPubKey));
   },
   /** Create a multisig script from public keys (hex[]).
    *  Calls Go: txscript.MultiSigScript() from btcd/txscript. */
-  async multiSigScript(hexPubKeys: string[], nRequired: number, network: Network = 'mainnet'): Promise<string> {
+  async multiSigScript(hexPubKeys: string[], nRequired: number, network: Network = 'mainnet'): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.multiSigScript(hexPubKeys, nRequired, network));
+    return unwrap<Uint8Array>(g().txscript.multiSigScript(hexPubKeys, nRequired, network));
   },
 
   // -- taproot --
 
   /** Compute the taproot output key from an internal key and optional script root.
    *  Calls Go: txscript.ComputeTaprootOutputKey() from btcd/txscript. */
-  async computeTaprootOutputKey(hexInternalKey: string, hexScriptRoot?: string): Promise<string> {
+  async computeTaprootOutputKey(hexInternalKey: string, hexScriptRoot?: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.computeTaprootOutputKey(hexInternalKey, hexScriptRoot ?? ''));
+    return unwrap<Uint8Array>(g().txscript.computeTaprootOutputKey(hexInternalKey, hexScriptRoot ?? ''));
   },
   /** Compute the taproot output key for a key-only spend (no script tree).
    *  Calls Go: txscript.ComputeTaprootKeyNoScript() from btcd/txscript. */
-  async computeTaprootKeyNoScript(hexInternalKey: string): Promise<string> {
+  async computeTaprootKeyNoScript(hexInternalKey: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.computeTaprootKeyNoScript(hexInternalKey));
+    return unwrap<Uint8Array>(g().txscript.computeTaprootKeyNoScript(hexInternalKey));
   },
   /** Tweak a private key for taproot key-path spending.
    *  Calls Go: txscript.TweakTaprootPrivKey() from btcd/txscript. */
-  async tweakTaprootPrivKey(hexPrivKey: string, hexScriptRoot?: string): Promise<string> {
+  async tweakTaprootPrivKey(hexPrivKey: string, hexScriptRoot?: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.tweakTaprootPrivKey(hexPrivKey, hexScriptRoot ?? ''));
+    return unwrap<Uint8Array>(g().txscript.tweakTaprootPrivKey(hexPrivKey, hexScriptRoot ?? ''));
   },
   /** Parse a serialized control block.
    *  Calls Go: txscript.ParseControlBlock() from btcd/txscript. */
@@ -239,47 +239,47 @@ export const txscript = {
 
   /** Compute a legacy (pre-segwit) signature hash.
    *  Calls Go: txscript.CalcSignatureHash() from btcd/txscript. */
-  async calcSignatureHash(hexScript: string, hashType: number, hexRawTx: string, inputIndex: number): Promise<string> {
+  async calcSignatureHash(hexScript: string, hashType: number, hexRawTx: string, inputIndex: number): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.calcSignatureHash(hexScript, hashType, hexRawTx, inputIndex));
+    return unwrap<Uint8Array>(g().txscript.calcSignatureHash(hexScript, hashType, hexRawTx, inputIndex));
   },
   /** Compute a BIP-143 witness v0 signature hash.
    *  Calls Go: txscript.CalcWitnessSigHash() from btcd/txscript. */
-  async calcWitnessSigHash(hexScript: string, hashType: number, hexRawTx: string, inputIndex: number, amount: number): Promise<string> {
+  async calcWitnessSigHash(hexScript: string, hashType: number, hexRawTx: string, inputIndex: number, amount: number): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.calcWitnessSigHash(hexScript, hashType, hexRawTx, inputIndex, amount));
+    return unwrap<Uint8Array>(g().txscript.calcWitnessSigHash(hexScript, hashType, hexRawTx, inputIndex, amount));
   },
   /** Compute a BIP-341 taproot signature hash. Requires prevOuts for all inputs.
    *  Calls Go: txscript.CalcTaprootSignatureHash() from btcd/txscript. */
-  async calcTaprootSignatureHash(hashType: number, hexRawTx: string, inputIndex: number, prevOuts: PrevOut[]): Promise<string> {
+  async calcTaprootSignatureHash(hashType: number, hexRawTx: string, inputIndex: number, prevOuts: PrevOut[]): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.calcTaprootSignatureHash(hashType, hexRawTx, inputIndex, prevOuts));
+    return unwrap<Uint8Array>(g().txscript.calcTaprootSignatureHash(hashType, hexRawTx, inputIndex, prevOuts));
   },
 
   // -- signing --
 
   /** Create a legacy input signature (DER-encoded + hashType byte).
    *  Calls Go: txscript.RawTxInSignature() from btcd/txscript. */
-  async rawTxInSignature(hexRawTx: string, inputIndex: number, hexSubScript: string, hashType: number, hexPrivKey: string): Promise<string> {
+  async rawTxInSignature(hexRawTx: string, inputIndex: number, hexSubScript: string, hashType: number, hexPrivKey: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.rawTxInSignature(hexRawTx, inputIndex, hexSubScript, hashType, hexPrivKey));
+    return unwrap<Uint8Array>(g().txscript.rawTxInSignature(hexRawTx, inputIndex, hexSubScript, hashType, hexPrivKey));
   },
   /** Create a witness v0 input signature (DER-encoded + hashType byte).
    *  Calls Go: txscript.RawTxInWitnessSignature() from btcd/txscript. */
-  async rawTxInWitnessSignature(hexRawTx: string, inputIndex: number, amount: number, hexSubScript: string, hashType: number, hexPrivKey: string): Promise<string> {
+  async rawTxInWitnessSignature(hexRawTx: string, inputIndex: number, amount: number, hexSubScript: string, hashType: number, hexPrivKey: string): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.rawTxInWitnessSignature(hexRawTx, inputIndex, amount, hexSubScript, hashType, hexPrivKey));
+    return unwrap<Uint8Array>(g().txscript.rawTxInWitnessSignature(hexRawTx, inputIndex, amount, hexSubScript, hashType, hexPrivKey));
   },
   /** Create a complete witness stack (signature + pubkey) for a P2WPKH spend.
    *  Calls Go: txscript.WitnessSignature() from btcd/txscript. */
-  async witnessSignature(hexRawTx: string, inputIndex: number, amount: number, hexSubScript: string, hashType: number, hexPrivKey: string, compress: boolean): Promise<string[]> {
+  async witnessSignature(hexRawTx: string, inputIndex: number, amount: number, hexSubScript: string, hashType: number, hexPrivKey: string, compress: boolean): Promise<Uint8Array[]> {
     await init();
-    return unwrap<string[]>(g().txscript.witnessSignature(hexRawTx, inputIndex, amount, hexSubScript, hashType, hexPrivKey, compress));
+    return unwrap<Uint8Array[]>(g().txscript.witnessSignature(hexRawTx, inputIndex, amount, hexSubScript, hashType, hexPrivKey, compress));
   },
   /** Create a taproot key-path signature. Requires prevOuts for all inputs.
    *  Calls Go: txscript.RawTxInTaprootSignature() from btcd/txscript. */
-  async rawTxInTaprootSignature(hexRawTx: string, inputIndex: number, hexMerkleRoot: string, hashType: number, hexPrivKey: string, prevOuts: PrevOut[]): Promise<string> {
+  async rawTxInTaprootSignature(hexRawTx: string, inputIndex: number, hexMerkleRoot: string, hashType: number, hexPrivKey: string, prevOuts: PrevOut[]): Promise<Uint8Array> {
     await init();
-    return unwrap<string>(g().txscript.rawTxInTaprootSignature(hexRawTx, inputIndex, hexMerkleRoot, hashType, hexPrivKey, prevOuts));
+    return unwrap<Uint8Array>(g().txscript.rawTxInTaprootSignature(hexRawTx, inputIndex, hexMerkleRoot, hashType, hexPrivKey, prevOuts));
   },
 };

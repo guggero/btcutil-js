@@ -223,7 +223,7 @@ func txscriptExtractWitnessProgramInfo(_ js.Value, args []js.Value) any {
 	}
 	return okResult(map[string]any{
 		"version": version,
-		"program": hex.EncodeToString(program),
+		"program": bytesToJS(program),
 	})
 }
 
@@ -268,7 +268,7 @@ func txscriptPushedData(_ js.Value, args []js.Value) any {
 	}
 	items := make([]any, len(data))
 	for i, d := range data {
-		items[i] = hex.EncodeToString(d)
+		items[i] = bytesToJS(d)
 	}
 	return okResult(items)
 }
@@ -317,7 +317,7 @@ func txscriptParsePkScript(_ js.Value, args []js.Value) any {
 
 	result := map[string]any{
 		"class":  pkScript.Class().String(),
-		"script": hex.EncodeToString(pkScript.Script()),
+		"script": bytesToJS(pkScript.Script()),
 	}
 
 	params, e := getNetwork(optString(args, 1, "mainnet"))
@@ -356,7 +356,7 @@ func txscriptComputePkScript(_ js.Value, args []js.Value) any {
 
 	result := map[string]any{
 		"class":  pkScript.Class().String(),
-		"script": hex.EncodeToString(pkScript.Script()),
+		"script": bytesToJS(pkScript.Script()),
 	}
 
 	params, e := getNetwork(optString(args, 2, "mainnet"))
@@ -389,7 +389,7 @@ func txscriptPayToAddrScript(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("payToAddrScript: %s", err)
 	}
-	return okResult(hex.EncodeToString(script))
+	return okResult(bytesToJS(script))
 }
 
 func txscriptNullDataScript(_ js.Value, args []js.Value) any {
@@ -404,7 +404,7 @@ func txscriptNullDataScript(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("nullDataScript: %s", err)
 	}
-	return okResult(hex.EncodeToString(script))
+	return okResult(bytesToJS(script))
 }
 
 func txscriptPayToTaprootScript(_ js.Value, args []js.Value) any {
@@ -426,7 +426,7 @@ func txscriptPayToTaprootScript(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("payToTaprootScript: %s", err)
 	}
-	return okResult(hex.EncodeToString(script))
+	return okResult(bytesToJS(script))
 }
 
 func txscriptMultiSigScript(_ js.Value, args []js.Value) any {
@@ -457,7 +457,7 @@ func txscriptMultiSigScript(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("multiSigScript: %s", err)
 	}
-	return okResult(hex.EncodeToString(script))
+	return okResult(bytesToJS(script))
 }
 
 // ---------------------------------------------------------------------------
@@ -491,7 +491,7 @@ func txscriptComputeTaprootOutputKey(_ js.Value, args []js.Value) any {
 	}
 
 	outKey := txscript.ComputeTaprootOutputKey(key, scriptRoot)
-	return okResult(hex.EncodeToString(schnorr.SerializePubKey(outKey)))
+	return okResult(bytesToJS(schnorr.SerializePubKey(outKey)))
 }
 
 func txscriptComputeTaprootKeyNoScript(_ js.Value, args []js.Value) any {
@@ -510,7 +510,7 @@ func txscriptComputeTaprootKeyNoScript(_ js.Value, args []js.Value) any {
 		}
 	}
 	outKey := txscript.ComputeTaprootKeyNoScript(key)
-	return okResult(hex.EncodeToString(schnorr.SerializePubKey(outKey)))
+	return okResult(bytesToJS(schnorr.SerializePubKey(outKey)))
 }
 
 func txscriptTweakTaprootPrivKey(_ js.Value, args []js.Value) any {
@@ -534,7 +534,7 @@ func txscriptTweakTaprootPrivKey(_ js.Value, args []js.Value) any {
 	}
 
 	tweaked := txscript.TweakTaprootPrivKey(*privKey, scriptRoot)
-	return okResult(hex.EncodeToString(tweaked.Serialize()))
+	return okResult(bytesToJS(tweaked.Serialize()))
 }
 
 func txscriptParseControlBlock(_ js.Value, args []js.Value) any {
@@ -550,10 +550,10 @@ func txscriptParseControlBlock(_ js.Value, args []js.Value) any {
 		return errfResult("parseControlBlock: %s", err)
 	}
 	return okResult(map[string]any{
-		"internalKey":     hex.EncodeToString(schnorr.SerializePubKey(cb.InternalKey)),
+		"internalKey":     bytesToJS(schnorr.SerializePubKey(cb.InternalKey)),
 		"leafVersion":     int(cb.LeafVersion),
 		"outputKeyYIsOdd": cb.OutputKeyYIsOdd,
-		"inclusionProof":  hex.EncodeToString(cb.InclusionProof),
+		"inclusionProof":  bytesToJS(cb.InclusionProof),
 	})
 }
 
@@ -605,16 +605,16 @@ func txscriptAssembleTaprootScriptTree(_ js.Value, args []js.Value) any {
 		}
 		cbBytes, _ := cb.ToBytes()
 		leafInfos[i] = map[string]any{
-			"leafHash":     hex.EncodeToString(lh[:]),
-			"script":       hex.EncodeToString(proof.TapLeaf.Script),
-			"controlBlock": hex.EncodeToString(cbBytes),
+			"leafHash":     bytesToJS(lh[:]),
+			"script":       bytesToJS(proof.TapLeaf.Script),
+			"controlBlock": bytesToJS(cbBytes),
 		}
 	}
 
 	return okResult(map[string]any{
-		"outputKey":   hex.EncodeToString(schnorr.SerializePubKey(outKey)),
-		"internalKey": hex.EncodeToString(schnorr.SerializePubKey(ik)),
-		"merkleRoot":  hex.EncodeToString(rootHash[:]),
+		"outputKey":   bytesToJS(schnorr.SerializePubKey(outKey)),
+		"internalKey": bytesToJS(schnorr.SerializePubKey(ik)),
+		"merkleRoot":  bytesToJS(rootHash[:]),
 		"leaves":      leafInfos,
 	})
 }
@@ -642,7 +642,7 @@ func txscriptCalcSignatureHash(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("calcSignatureHash: %s", err)
 	}
-	return okResult(hex.EncodeToString(h))
+	return okResult(bytesToJS(h))
 }
 
 func txscriptCalcWitnessSigHash(_ js.Value, args []js.Value) any {
@@ -671,7 +671,7 @@ func txscriptCalcWitnessSigHash(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("calcWitnessSigHash: %s", err)
 	}
-	return okResult(hex.EncodeToString(h))
+	return okResult(bytesToJS(h))
 }
 
 func txscriptCalcTaprootSignatureHash(_ js.Value, args []js.Value) any {
@@ -698,7 +698,7 @@ func txscriptCalcTaprootSignatureHash(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("calcTaprootSignatureHash: %s", err)
 	}
-	return okResult(hex.EncodeToString(h))
+	return okResult(bytesToJS(h))
 }
 
 // ---------------------------------------------------------------------------
@@ -732,7 +732,7 @@ func txscriptRawTxInSignature(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("rawTxInSignature: %s", err)
 	}
-	return okResult(hex.EncodeToString(sig))
+	return okResult(bytesToJS(sig))
 }
 
 func txscriptRawTxInWitnessSignature(_ js.Value, args []js.Value) any {
@@ -766,7 +766,7 @@ func txscriptRawTxInWitnessSignature(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("rawTxInWitnessSignature: %s", err)
 	}
-	return okResult(hex.EncodeToString(sig))
+	return okResult(bytesToJS(sig))
 }
 
 func txscriptWitnessSignature(_ js.Value, args []js.Value) any {
@@ -803,7 +803,7 @@ func txscriptWitnessSignature(_ js.Value, args []js.Value) any {
 	}
 	items := make([]any, len(wit))
 	for i, w := range wit {
-		items[i] = hex.EncodeToString(w)
+		items[i] = bytesToJS(w)
 	}
 	return okResult(items)
 }
@@ -850,5 +850,5 @@ func txscriptRawTxInTaprootSignature(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("rawTxInTaprootSignature: %s", err)
 	}
-	return okResult(hex.EncodeToString(sig))
+	return okResult(bytesToJS(sig))
 }

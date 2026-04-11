@@ -49,7 +49,7 @@ func gcsBuildFilter(_ js.Value, args []js.Value) any {
 	}
 
 	return okResult(map[string]any{
-		"filter": hex.EncodeToString(filterBytes),
+		"filter": bytesToJS(filterBytes),
 		"n":      int(filter.N()),
 	})
 }

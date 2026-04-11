@@ -17,7 +17,7 @@ func chainhashHashB(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	return okResult(hex.EncodeToString(chainhash.HashB(b)))
+	return okResult(bytesToJS(chainhash.HashB(b)))
 }
 
 func chainhashDoubleHashB(_ js.Value, args []js.Value) any {
@@ -28,7 +28,7 @@ func chainhashDoubleHashB(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	return okResult(hex.EncodeToString(chainhash.DoubleHashB(b)))
+	return okResult(bytesToJS(chainhash.DoubleHashB(b)))
 }
 
 func chainhashTaggedHash(_ js.Value, args []js.Value) any {
@@ -48,7 +48,7 @@ func chainhashTaggedHash(_ js.Value, args []js.Value) any {
 		msgs[i] = m
 	}
 	h := chainhash.TaggedHash(tag, msgs...)
-	return okResult(hex.EncodeToString(h[:]))
+	return okResult(bytesToJS(h[:]))
 }
 
 func chainhashNewHashFromStr(_ js.Value, args []js.Value) any {
@@ -59,7 +59,7 @@ func chainhashNewHashFromStr(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("newHashFromStr: %s", err)
 	}
-	return okResult(hex.EncodeToString(h[:]))
+	return okResult(bytesToJS(h[:]))
 }
 
 func chainhashHashToString(_ js.Value, args []js.Value) any {

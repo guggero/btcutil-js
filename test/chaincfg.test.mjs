@@ -2,6 +2,8 @@ import './setup.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { chaincfg } from '../dist/index.js';
+import { toHex } from './util.mjs';
+
 
 describe('chaincfg', () => {
   it('getParams returns mainnet info', async () => {
@@ -42,8 +44,11 @@ describe('chaincfg', () => {
   });
   it('hdPrivateKeyToPublicKeyID', async () => {
     const p = await chaincfg.getParams('mainnet');
-    const pubID = await chaincfg.hdPrivateKeyToPublicKeyID(p.hdPrivateKeyID);
-    assert.equal(pubID, p.hdPublicKeyID);
+    assert.ok(p.hdPrivateKeyID instanceof Uint8Array);
+    assert.ok(p.hdPublicKeyID instanceof Uint8Array);
+    const pubID = await chaincfg.hdPrivateKeyToPublicKeyID(toHex(p.hdPrivateKeyID));
+    assert.ok(pubID instanceof Uint8Array);
+    assert.equal(toHex(pubID), toHex(p.hdPublicKeyID));
   });
 
   it('hdPrivateKeyToPublicKeyID rejects unknown key ID', async () => {

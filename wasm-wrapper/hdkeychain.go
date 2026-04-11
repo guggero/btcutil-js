@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"strconv"
 	"strings"
 	"syscall/js"
@@ -39,9 +38,11 @@ func hdFromString(_ js.Value, args []js.Value) any {
 		return errfResult("invalid extended key: %s", err)
 	}
 
-	pubKeyHex := ""
+	var pubKeyBytes any
 	if pk, err := key.ECPubKey(); err == nil {
-		pubKeyHex = hex.EncodeToString(pk.SerializeCompressed())
+		pubKeyBytes = bytesToJS(pk.SerializeCompressed())
+	} else {
+		pubKeyBytes = bytesToJS(nil)
 	}
 
 	return okResult(map[string]any{
@@ -50,9 +51,9 @@ func hdFromString(_ js.Value, args []js.Value) any {
 		"depth":             int(key.Depth()),
 		"childIndex":        int(key.ChildIndex()),
 		"parentFingerprint": int(key.ParentFingerprint()),
-		"chainCode":         hex.EncodeToString(key.ChainCode()),
-		"version":           hex.EncodeToString(key.Version()),
-		"publicKey":         pubKeyHex,
+		"chainCode":         bytesToJS(key.ChainCode()),
+		"version":           bytesToJS(key.Version()),
+		"publicKey":         pubKeyBytes,
 	})
 }
 
@@ -149,7 +150,7 @@ func hdGenerateSeed(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("generateSeed: %s", err)
 	}
-	return okResult(hex.EncodeToString(seed))
+	return okResult(bytesToJS(seed))
 }
 
 func hdPublicKey(_ js.Value, args []js.Value) any {
@@ -164,7 +165,7 @@ func hdPublicKey(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("ecPubKey: %s", err)
 	}
-	return okResult(hex.EncodeToString(pub.SerializeCompressed()))
+	return okResult(bytesToJS(pub.SerializeCompressed()))
 }
 
 func hdAddress(_ js.Value, args []js.Value) any {

@@ -47,6 +47,16 @@ func okResult(v any) map[string]any {
 	return map[string]any{"result": v}
 }
 
+// bytesToJS copies a Go []byte into a new JS Uint8Array.
+func bytesToJS(b []byte) js.Value {
+	n := len(b)
+	dst := js.Global().Get("Uint8Array").New(n)
+	if n > 0 {
+		js.CopyBytesToJS(dst, b)
+	}
+	return dst
+}
+
 func hexDecode(s string) ([]byte, map[string]any) {
 	b, err := hex.DecodeString(s)
 	if err != nil {
@@ -98,10 +108,10 @@ func deserializeTx(hexStr string) (*wire.MsgTx, map[string]any) {
 	return msgTx, nil
 }
 
-func serializeTx(msgTx *wire.MsgTx) string {
+func serializeTx(msgTx *wire.MsgTx) js.Value {
 	var buf bytes.Buffer
 	_ = msgTx.Serialize(&buf)
-	return hex.EncodeToString(buf.Bytes())
+	return bytesToJS(buf.Bytes())
 }
 
 func parsePsbt(b64 string) (*btcpsbt.Packet, map[string]any) {
