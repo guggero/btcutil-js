@@ -277,16 +277,76 @@ Transaction utilities.
 
 ### `psbt`
 
-Partially Signed Bitcoin Transaction (BIP-174) utilities.
+Partially Signed Bitcoin Transaction (BIP-174) utilities. Mutating functions
+take a base64 PSBT, apply the change, and return a new base64 PSBT:
+
+```typescript
+let p = await psbt.create(inputs, outputs);
+p = await psbt.addInWitnessUtxo(p, 0, 50000, pkScript);
+const { psbt: signed } = await psbt.sign(p, 0, sig, pubKey);
+const finalized = await psbt.maybeFinalizeAll(signed);
+const rawTx = await psbt.extract(finalized);
+```
+
+**Read-only:**
 
 | Method | Go function | Description |
 |--------|-------------|-------------|
-| `decode(base64Psbt)` | `psbt.NewFromRawBytes()` | Decode a base64 PSBT. Returns `PsbtDecodeResult` with inputs, outputs, fee, etc. |
-| `isComplete(base64Psbt)` | `Packet.IsComplete()` | Check if the PSBT is fully signed. |
-| `extract(base64Psbt)` | `psbt.Extract()` | Extract the final signed transaction (Uint8Array). |
-| `getFee(base64Psbt)` | `Packet.GetTxFee()` | Get the fee in satoshis (requires UTXO info on inputs). |
-| `fromBase64(base64Psbt)` | `Packet.Serialize()` | Convert a base64 PSBT to raw bytes (Uint8Array). |
-| `toBase64(psbtData)` | `Packet.B64Encode()` | Convert raw PSBT bytes (Uint8Array) to base64. |
+| `decode(base64Psbt)` | `psbt.NewFromRawBytes()` | Decode a PSBT with all per-input/output fields (partial sigs, BIP-32 derivation, taproot fields, etc.). |
+| `isComplete(base64Psbt)` | `Packet.IsComplete()` | Check if all inputs are finalized. |
+| `extract(base64Psbt)` | `psbt.Extract()` | Extract the final signed transaction. |
+| `getFee(base64Psbt)` | `Packet.GetTxFee()` | Get the fee in satoshis (requires UTXO info). |
+| `fromBase64(base64Psbt)` | `Packet.Serialize()` | Convert base64 PSBT to raw bytes. |
+| `toBase64(psbtData)` | `Packet.B64Encode()` | Convert raw PSBT bytes to base64. |
+| `sumUtxoInputValues(base64Psbt)` | `psbt.SumUtxoInputValues()` | Sum all input UTXO values in satoshis. |
+| `inputsReadyToSign(base64Psbt)` | `psbt.InputsReadyToSign()` | Verify all inputs have UTXO info. Throws on error. |
+| `sanityCheck(base64Psbt)` | `Packet.SanityCheck()` | Validate PSBT format per BIP-174. Throws on error. |
+
+**Creation:**
+
+| Method | Go function | Description |
+|--------|-------------|-------------|
+| `create(inputs[], outputs[], version?, lockTime?)` | `psbt.New()` | Create a new PSBT. Inputs: `{txid, vout, sequence?}`. Outputs: `{value, script}`. |
+| `fromUnsignedTx(rawTx)` | `psbt.NewFromUnsignedTx()` | Create a PSBT from an unsigned raw transaction. |
+
+**Updater — inputs:**
+
+| Method | Go function | Description |
+|--------|-------------|-------------|
+| `addInNonWitnessUtxo(psbt, inIndex, rawTx)` | `Updater.AddInNonWitnessUtxo()` | Add full previous transaction for non-segwit. |
+| `addInWitnessUtxo(psbt, inIndex, value, pkScript)` | `Updater.AddInWitnessUtxo()` | Add witness UTXO for segwit. |
+| `addInSighashType(psbt, inIndex, sighashType)` | `Updater.AddInSighashType()` | Set sighash type for an input. |
+| `addInRedeemScript(psbt, inIndex, script)` | `Updater.AddInRedeemScript()` | Add P2SH redeem script. |
+| `addInWitnessScript(psbt, inIndex, script)` | `Updater.AddInWitnessScript()` | Add witness script. |
+| `addInBip32Derivation(psbt, inIndex, fp, path, pubKey)` | `Updater.AddInBip32Derivation()` | Add BIP-32 derivation info. |
+
+**Updater — outputs:**
+
+| Method | Go function | Description |
+|--------|-------------|-------------|
+| `addOutBip32Derivation(psbt, outIndex, fp, path, pubKey)` | `Updater.AddOutBip32Derivation()` | Add BIP-32 derivation info. |
+| `addOutRedeemScript(psbt, outIndex, script)` | `Updater.AddOutRedeemScript()` | Add P2SH redeem script. |
+| `addOutWitnessScript(psbt, outIndex, script)` | `Updater.AddOutWitnessScript()` | Add witness script. |
+
+**Signing:**
+
+| Method | Go function | Description |
+|--------|-------------|-------------|
+| `sign(psbt, inIndex, sig, pubKey, redeemScript?, witnessScript?)` | `Updater.Sign()` | Attach a signature. Returns `{psbt, outcome}` (0=success, 1=finalized, -1=invalid). |
+
+**Finalization:**
+
+| Method | Go function | Description |
+|--------|-------------|-------------|
+| `finalize(psbt, inIndex)` | `psbt.Finalize()` | Finalize a specific input. |
+| `maybeFinalize(psbt, inIndex)` | `psbt.MaybeFinalize()` | Try to finalize. Returns `{psbt, finalized}`. |
+| `maybeFinalizeAll(psbt)` | `psbt.MaybeFinalizeAll()` | Try to finalize all inputs. |
+
+**Sorting:**
+
+| Method | Go function | Description |
+|--------|-------------|-------------|
+| `inPlaceSort(psbt)` | `psbt.InPlaceSort()` | Sort inputs/outputs per BIP-69. |
 
 ---
 

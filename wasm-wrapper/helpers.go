@@ -12,6 +12,8 @@ import (
 	"github.com/btcsuite/btcd/btcutil"
 	btcpsbt "github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 )
 
@@ -134,4 +136,12 @@ func parsePsbt(b64 string) (*btcpsbt.Packet, map[string]any) {
 		return nil, errfResult("failed to parse PSBT: %s", err)
 	}
 	return p, nil
+}
+
+func newHashFromString(s string) (*chainhash.Hash, error) {
+	return chainhash.NewHashFromStr(s)
+}
+
+func txscriptSigHashType(v int) txscript.SigHashType {
+	return txscript.SigHashType(v)
 }

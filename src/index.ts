@@ -12,6 +12,12 @@ export { bip322 } from './bip322';
 export { txsort } from './txsort';
 export { tx } from './tx';
 export { psbt } from './psbt';
+export type {
+  PsbtInput,
+  PsbtOutput,
+  PsbtSignResult,
+  PsbtMaybeFinalizeResult,
+} from './psbt';
 export { gcs } from './gcs';
 export { bloom } from './bloom';
 export { txscript } from './txscript';

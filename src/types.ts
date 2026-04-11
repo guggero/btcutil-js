@@ -74,20 +74,69 @@ export interface TxDecodeResult {
   outputs: TxOutput[];
 }
 
+export interface PartialSigInfo {
+  pubKey: Uint8Array;
+  signature: Uint8Array;
+}
+
+export interface Bip32DerivationInfo {
+  pubKey: Uint8Array;
+  masterKeyFingerprint: number;
+  path: number[];
+}
+
+export interface TaprootScriptSpendSigInfo {
+  xOnlyPubKey: Uint8Array;
+  leafHash: Uint8Array;
+  signature: Uint8Array;
+  sigHash: number;
+}
+
+export interface TaprootLeafScriptInfo {
+  controlBlock: Uint8Array;
+  script: Uint8Array;
+  leafVersion: number;
+}
+
+export interface TaprootBip32DerivationInfo {
+  xOnlyPubKey: Uint8Array;
+  leafHashes: Uint8Array[];
+  masterKeyFingerprint: number;
+  path: number[];
+}
+
 export interface PsbtInputInfo {
   previousTxid: string;
   previousVout: number;
+  sequence: number;
+  sighashType: number;
+  redeemScript: Uint8Array;
+  witnessScript: Uint8Array;
   hasNonWitnessUtxo: boolean;
-  hasFinalScriptSig: boolean;
-  hasFinalScriptWitness: boolean;
-  partialSigCount: number;
+  nonWitnessUtxo?: Uint8Array;
   witnessUtxoValue?: number;
   witnessUtxoScript?: Uint8Array;
+  partialSigs: PartialSigInfo[];
+  finalScriptSig: Uint8Array;
+  finalScriptWitness: Uint8Array;
+  bip32Derivation: Bip32DerivationInfo[];
+  taprootKeySpendSig: Uint8Array;
+  taprootInternalKey: Uint8Array;
+  taprootMerkleRoot: Uint8Array;
+  taprootScriptSpendSigs: TaprootScriptSpendSigInfo[];
+  taprootLeafScripts: TaprootLeafScriptInfo[];
+  taprootBip32Derivation: TaprootBip32DerivationInfo[];
 }
 
 export interface PsbtOutputInfo {
   value: number;
   scriptPubKey: Uint8Array;
+  redeemScript: Uint8Array;
+  witnessScript: Uint8Array;
+  bip32Derivation: Bip32DerivationInfo[];
+  taprootInternalKey: Uint8Array;
+  taprootTapTree: Uint8Array;
+  taprootBip32Derivation: TaprootBip32DerivationInfo[];
 }
 
 export interface PsbtDecodeResult {
