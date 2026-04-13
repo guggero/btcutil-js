@@ -59,7 +59,11 @@ func main() {
 			"address":        js.FuncOf(hdAddress),
 		},
 		"bip322": map[string]any{
-			"verifyMessage": js.FuncOf(bip322VerifyMessage),
+			"verifyMessage":           js.FuncOf(bip322VerifyMessage),
+			"buildToSignPacketSimple": js.FuncOf(bip322BuildToSignPacketSimple),
+			"buildToSignPacketFull":   js.FuncOf(bip322BuildToSignPacketFull),
+			"serializeTxWitness":      js.FuncOf(bip322SerializeTxWitness),
+			"parseTxWitness":          js.FuncOf(bip322ParseTxWitness),
 		},
 		"txsort": map[string]any{
 			"sort":     js.FuncOf(txsortSort),

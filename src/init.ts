@@ -153,11 +153,7 @@ function buildSyncApi(): BtcutilSync {
     hash: wrapNamespace(raw.hash),
     wif: wrapNamespace(raw.wif),
     hdkeychain: wrapNamespace(raw.hdkeychain),
-    // bip322 returns {valid, error?} directly — no unwrap.
-    bip322: {
-      verifyMessage: (...args: any[]) =>
-        raw.bip322.verifyMessage(...args),
-    },
+    bip322: wrapNamespace(raw.bip322),
     txsort: wrapNamespace(raw.txsort),
     tx: wrapNamespace(raw.tx),
     psbt: wrapNamespace(raw.psbt),
