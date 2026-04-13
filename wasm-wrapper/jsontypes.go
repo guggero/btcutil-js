@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -39,22 +40,33 @@ func (h *HexBytes) UnmarshalJSON(data []byte) error {
 }
 
 // ---------------------------------------------------------------------------
-// HexUint32: a uint32 that marshals to an 8-char lowercase hex string (the
-// canonical display form for BIP-32 master-key fingerprints). Unmarshals
-// from either a hex string (optionally "0x"-prefixed) or a JSON number.
+// HexUint32: a uint32 (used for BIP-32 master-key fingerprints) whose
+// JSON form is the 8-char lowercase hex of the value's *little-endian*
+// 4-byte encoding — i.e. the same byte order BIP-174 stores on the wire,
+// and the same byte order every HWW / wallet shows ("73c5da0a"). The Go
+// uint32 itself holds the LE-decoded value (matching btcd's
+// `MasterKeyFingerprint uint32` field), but consumers should treat the
+// hex string as the canonical display form.
+//
+// Unmarshal accepts:
+//   - a hex string ("73c5da0a", optionally "0x"-prefixed) — interpreted as
+//     wire bytes and LE-decoded.
+//   - a JSON number — the LE-decoded uint32 value (legacy / convenience).
 // ---------------------------------------------------------------------------
 
 type HexUint32 uint32
 
 func (h HexUint32) MarshalJSON() ([]byte, error) {
-	return json.Marshal(fmt.Sprintf("%08x", uint32(h)))
+	var b [4]byte
+	binary.LittleEndian.PutUint32(b[:], uint32(h))
+	return json.Marshal(hex.EncodeToString(b[:]))
 }
 
 func (h *HexUint32) UnmarshalJSON(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
-	// String form: "12345678" or "0x12345678".
+	// String form: hex of the 4 wire bytes (LE on disk).
 	if data[0] == '"' {
 		var s string
 		if err := json.Unmarshal(data, &s); err != nil {
@@ -65,11 +77,23 @@ func (h *HexUint32) UnmarshalJSON(data []byte) error {
 			*h = 0
 			return nil
 		}
-		n, err := strconv.ParseUint(s, 16, 32)
+		b, err := hex.DecodeString(s)
 		if err != nil {
 			return fmt.Errorf("HexUint32: %w", err)
 		}
-		*h = HexUint32(n)
+		switch len(b) {
+		case 4:
+			*h = HexUint32(binary.LittleEndian.Uint32(b))
+		default:
+			// Tolerate short or odd-length inputs by parsing as a
+			// plain hex number (legacy behaviour). Caller can
+			// always pass the canonical 8-char form.
+			n, err := strconv.ParseUint(s, 16, 32)
+			if err != nil {
+				return fmt.Errorf("HexUint32: %w", err)
+			}
+			*h = HexUint32(n)
+		}
 		return nil
 	}
 	// Numeric form.

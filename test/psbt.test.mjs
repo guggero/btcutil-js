@@ -202,8 +202,9 @@ describe('psbt: updater', () => {
     );
     const info = await psbt.decode(p);
     assert.equal(info.inputs[0].bip32Derivation.length, 1);
-    // Fingerprint is now an 8-char lowercase hex string.
-    assert.equal(info.inputs[0].bip32Derivation[0].masterKeyFingerprint, '12345678');
+    // Fingerprint hex is the wire byte order (LE bytes of the uint32):
+    // updater receives 0x12345678 → wire bytes 78 56 34 12.
+    assert.equal(info.inputs[0].bip32Derivation[0].masterKeyFingerprint, '78563412');
     assert.deepEqual(info.inputs[0].bip32Derivation[0].path, [44, 0, 0, 0, 0]);
     assert.equal(info.inputs[0].bip32Derivation[0].pathStr, 'm/44/0/0/0/0');
   });
@@ -215,7 +216,8 @@ describe('psbt: updater', () => {
     );
     const info = await psbt.decode(p);
     assert.equal(info.outputs[0].bip32Derivation.length, 1);
-    assert.equal(info.outputs[0].bip32Derivation[0].masterKeyFingerprint, 'aabbccdd');
+    // 0xaabbccdd as uint32 → wire bytes dd cc bb aa.
+    assert.equal(info.outputs[0].bip32Derivation[0].masterKeyFingerprint, 'ddccbbaa');
   });
 
   it('inputsReadyToSign fails without UTXO', async () => {
@@ -428,7 +430,8 @@ describe('psbt: encode round-trip', () => {
 
     const deriv = redecoded.inputs[0].bip32Derivation;
     assert.equal(deriv.length, 1);
-    assert.equal(deriv[0].masterKeyFingerprint, 'deadbeef');
+    // 0xdeadbeef as uint32 → wire bytes ef be ad de.
+    assert.equal(deriv[0].masterKeyFingerprint, 'efbeadde');
     assert.deepEqual(deriv[0].path, [44, 0, 0, 0, 5]);
   });
 
