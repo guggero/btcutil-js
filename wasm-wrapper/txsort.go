@@ -12,7 +12,7 @@ func txsortSort(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexRawTx"); e != nil {
 		return e
 	}
-	msgTx, e := deserializeTx(args[0].String())
+	msgTx, e := deserializeTxArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -24,7 +24,7 @@ func txsortIsSorted(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexRawTx"); e != nil {
 		return e
 	}
-	msgTx, e := deserializeTx(args[0].String())
+	msgTx, e := deserializeTxArg(args[0])
 	if e != nil {
 		return e
 	}

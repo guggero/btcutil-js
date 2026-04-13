@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" .
+cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" wasm-wrapper/wasm_exec.js
 
 cd wasm-wrapper
 GOOS=js GOARCH=wasm go build \

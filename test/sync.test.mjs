@@ -1,8 +1,14 @@
 import './setup.mjs';
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
 import { init } from '../dist/index.js';
 import { toHex } from './util.mjs';
+
+const psbtVectors = JSON.parse(readFileSync(
+  new URL('test-vectors/psbt.json', import.meta.url), 'utf-8',
+));
 
 
 describe('sync API', () => {
@@ -211,7 +217,7 @@ describe('sync API', () => {
     const psbtHex = magic + keyLen + key + valLen + unsignedTxHex + '00' + '00' + '00';
     const psbtBase64 = Buffer.from(psbtHex, 'hex').toString('base64');
     const info = lib.psbt.decode(psbtBase64);
-    assert.equal(info.inputCount, 1);
+    assert.equal(info.inputs.length, 1);
     assert.equal(info.isComplete, false);
   });
 
@@ -219,6 +225,165 @@ describe('sync API', () => {
     assert.throws(() => lib.base58.encode('zzzz'));
     assert.throws(() => lib.address.decode('not-an-address'));
     assert.throws(() => lib.btcec.pubKeyFromBytes('0000'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tx.decode / tx.encode and psbt.decode / psbt.encode go through the JSON
+// codec — both directions need their dedicated sync overrides in init.ts.
+// These tests exercise that path directly.
+// ---------------------------------------------------------------------------
+
+describe('sync API: tx and psbt JSON codec', () => {
+  let lib;
+  before(async () => { lib = await init(); });
+
+  // Segwit tx with a witness — exercises Uint8Array fields all the way down.
+  const segwitTxHex =
+    '02000000' +
+    '0001' +
+    '01' +
+    '0000000000000000000000000000000000000000000000000000000000000000' +
+    '00000000' +
+    '00' +
+    'ffffffff' +
+    '01' +
+    'e803000000000000' +
+    '00' +
+    '02' +
+    '04' + 'deadbeef' +
+    '04' + 'cafebabe' +
+    '00000000';
+
+  it('tx.decode returns Uint8Array byte fields (not hex strings)', () => {
+    const decoded = lib.tx.decode(segwitTxHex);
+    assert.equal(decoded.version, 2);
+    assert.equal(typeof decoded.txid, 'string');
+    assert.equal(decoded.txid.length, 64);
+    assert.equal(typeof decoded.wtxid, 'string');
+    assert.equal(decoded.inputs.length, 1);
+    assert.ok(decoded.inputs[0].scriptSig instanceof Uint8Array);
+    assert.equal(decoded.inputs[0].witness.length, 2);
+    assert.ok(decoded.inputs[0].witness[0] instanceof Uint8Array);
+    assert.equal(toHex(decoded.inputs[0].witness[0]), 'deadbeef');
+    assert.equal(toHex(decoded.inputs[0].witness[1]), 'cafebabe');
+    assert.ok(decoded.outputs[0].scriptPubKey instanceof Uint8Array);
+    assert.equal(decoded.outputs[0].value, 1000);
+  });
+
+  it('tx.encode accepts the decoded object and returns Uint8Array', () => {
+    const decoded = lib.tx.decode(segwitTxHex);
+    const encoded = lib.tx.encode(decoded);
+    assert.ok(encoded instanceof Uint8Array);
+    assert.equal(toHex(encoded), segwitTxHex);
+  });
+
+  it('tx round-trip: decode → encode → decode is structurally equal', () => {
+    const d1 = lib.tx.decode(segwitTxHex);
+    const e1 = lib.tx.encode(d1);
+    const d2 = lib.tx.decode(toHex(e1));
+    assert.equal(d2.txid, d1.txid);
+    assert.equal(d2.wtxid, d1.wtxid);
+    assert.equal(toHex(d2.inputs[0].witness[1]), toHex(d1.inputs[0].witness[1]));
+  });
+
+  it('tx.encode accepts a freshly constructed TxDecodeResult', () => {
+    const built = {
+      version: 2,
+      locktime: 0,
+      inputs: [{
+        txid: '0000000000000000000000000000000000000000000000000000000000000001',
+        vout: 0,
+        scriptSig: new Uint8Array([0x00]),
+        sequence: 0xffffffff,
+        witness: [],
+      }],
+      outputs: [{
+        value: 50000,
+        scriptPubKey: new Uint8Array([0x00, 0x14,
+          0x75, 0x1e, 0x76, 0xe8, 0x19, 0x91, 0x96, 0xd4, 0x54, 0x94,
+          0x1c, 0x45, 0xd1, 0xb3, 0xa3, 0x23, 0xf1, 0x43, 0x3b, 0xd6,
+        ]),
+      }],
+    };
+    const encoded = lib.tx.encode(built);
+    const redecoded = lib.tx.decode(toHex(encoded));
+    assert.equal(redecoded.version, 2);
+    assert.equal(redecoded.outputs[0].value, 50000);
+  });
+
+  it('tx.decode rejects invalid hex synchronously', () => {
+    assert.throws(() => lib.tx.decode('zzzz'));
+  });
+
+  it('tx.encode rejects malformed input synchronously', () => {
+    assert.throws(() => lib.tx.encode({inputs: 'nope'}));
+  });
+
+  // Use a real PSBT vector that exercises every field on the round-trip.
+  const psbtBase64 = Buffer.from(psbtVectors.validHex[0], 'hex')
+    .toString('base64');
+
+  it('psbt.decode returns Uint8Array fields and a structured unsignedTx', () => {
+    const info = lib.psbt.decode(psbtBase64);
+    assert.equal(typeof info.unsignedTx.version, 'number');
+    assert.equal(typeof info.unsignedTx.locktime, 'number');
+    assert.equal(typeof info.isComplete, 'boolean');
+    assert.ok(Array.isArray(info.inputs));
+    assert.ok(Array.isArray(info.outputs));
+    // The embedded unsigned tx is itself a TxDecodeResult.
+    assert.equal(typeof info.unsignedTx.txid, 'string');
+    assert.equal(info.unsignedTx.txid.length, 64);
+    assert.ok(Array.isArray(info.unsignedTx.inputs));
+    if (info.unsignedTx.inputs.length > 0) {
+      assert.ok(info.unsignedTx.inputs[0].scriptSig instanceof Uint8Array);
+    }
+    if (info.unsignedTx.outputs.length > 0) {
+      assert.ok(info.unsignedTx.outputs[0].scriptPubKey instanceof Uint8Array);
+    }
+    // Optional byte fields on PSBT inputs/outputs are either Uint8Array (when
+    // set) or undefined (when absent — improvement #9).
+    for (const inp of info.inputs) {
+      if (inp.redeemScript != null) {
+        assert.ok(inp.redeemScript instanceof Uint8Array);
+      }
+      if (inp.witnessScript != null) {
+        assert.ok(inp.witnessScript instanceof Uint8Array);
+      }
+    }
+    assert.ok(Array.isArray(info.xpubs));
+    assert.ok(Array.isArray(info.unknowns));
+  });
+
+  it('psbt.encode produces the original base64 (byte-exact round-trip)', () => {
+    const decoded = lib.psbt.decode(psbtBase64);
+    const reencoded = lib.psbt.encode(decoded);
+    assert.equal(reencoded, psbtBase64);
+  });
+
+  it('psbt round-trip preserves every vector', () => {
+    // Run a structural deep-equal across all valid hex vectors using the
+    // sync API. This guarantees the sync override and the async path stay
+    // in lockstep.
+    for (let i = 0; i < psbtVectors.validHex.length; i++) {
+      const b64 = Buffer.from(psbtVectors.validHex[i], 'hex')
+        .toString('base64');
+      const d1 = lib.psbt.decode(b64);
+      const e1 = lib.psbt.encode(d1);
+      assert.equal(e1, b64, `validHex[${i}] base64 mismatch`);
+      const d2 = lib.psbt.decode(e1);
+      assert.equal(d2.unsignedTx.txid, d1.unsignedTx.txid);
+      assert.equal(d2.inputs.length, d1.inputs.length);
+      assert.equal(d2.outputs.length, d1.outputs.length);
+    }
+  });
+
+  it('psbt.decode rejects garbage synchronously', () => {
+    assert.throws(() => lib.psbt.decode('not-a-psbt'));
+  });
+
+  it('psbt.encode rejects a malformed object synchronously', () => {
+    assert.throws(() => lib.psbt.encode({nonsense: true}));
   });
 });
 
@@ -312,5 +477,163 @@ describe('Uint8Array inputs', () => {
     const pkHash = lib.hash.hash160(pubKey); // accepts & returns Uint8Array
     const addr = lib.address.fromWitnessPubKeyHash(pkHash); // accepts Uint8Array
     assert.ok(addr.startsWith('bc1q'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression: every Bytes-typed `rawTx` parameter must accept a Uint8Array
+// and produce the same result as the equivalent hex string.
+//
+// Background: tx/txsort/txscript helpers used to call `args[0].String()` and
+// hex-decode the result. When passed a Uint8Array, Go's syscall/js returns
+// `"<TYPE>"` from `.String()`, which then fails hex decoding with
+// "invalid byte: U+003C '<'". The Go side now normalises via
+// `deserializeTxArg`; these tests pin that behaviour.
+// ---------------------------------------------------------------------------
+
+describe('rawTx Bytes parameter accepts Uint8Array', () => {
+  let lib;
+  before(async () => { lib = await init(); });
+
+  function hexToBytes(hex) {
+    const out = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < out.length; i++) {
+      out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    }
+    return out;
+  }
+
+  // A small segwit tx so witness/non-witness paths are both exercised.
+  const segwitTxHex =
+    '02000000' + '0001' + '01' +
+    '0000000000000000000000000000000000000000000000000000000000000000' +
+    '00000000' + '00' + 'ffffffff' +
+    '01' + 'e803000000000000' + '00' +
+    '02' + '04' + 'deadbeef' + '04' + 'cafebabe' +
+    '00000000';
+  const legacyTxHex =
+    '02000000' + '01' +
+    '0000000000000000000000000000000000000000000000000000000000000000' +
+    '00000000' + '01' + '00' + 'ffffffff' +
+    '01' + 'e803000000000000' + '00' + '00000000';
+
+  // Fixed key so signatures are deterministic across runs.
+  const privKeyHex =
+    '0c28fca386c7a227600b2fe50b7cae11ec86d3bf1fbe471be89827e19d72aa1d';
+  const privKeyBytes = hexToBytes(privKeyHex);
+
+  it('tx.hash', () => {
+    assert.equal(
+      lib.tx.hash(hexToBytes(segwitTxHex)),
+      lib.tx.hash(segwitTxHex),
+    );
+  });
+
+  it('tx.witnessHash', () => {
+    assert.equal(
+      lib.tx.witnessHash(hexToBytes(segwitTxHex)),
+      lib.tx.witnessHash(segwitTxHex),
+    );
+  });
+
+  it('tx.hasWitness', () => {
+    assert.equal(
+      lib.tx.hasWitness(hexToBytes(segwitTxHex)),
+      lib.tx.hasWitness(segwitTxHex),
+    );
+  });
+
+  it('tx.decode', () => {
+    const a = lib.tx.decode(hexToBytes(segwitTxHex));
+    const b = lib.tx.decode(segwitTxHex);
+    assert.equal(a.txid, b.txid);
+    assert.equal(a.wtxid, b.wtxid);
+  });
+
+  it('txsort.sort', () => {
+    assert.deepEqual(
+      lib.txsort.sort(hexToBytes(legacyTxHex)),
+      lib.txsort.sort(legacyTxHex),
+    );
+  });
+
+  it('txsort.isSorted', () => {
+    assert.equal(
+      lib.txsort.isSorted(hexToBytes(legacyTxHex)),
+      lib.txsort.isSorted(legacyTxHex),
+    );
+  });
+
+  it('txscript.calcSignatureHash', () => {
+    const subScript = '76a914751e76e8199196d454941c45d1b3a323f1433bd688ac';
+    assert.deepEqual(
+      lib.txscript.calcSignatureHash(subScript, 1, hexToBytes(legacyTxHex), 0),
+      lib.txscript.calcSignatureHash(subScript, 1, legacyTxHex, 0),
+    );
+  });
+
+  it('txscript.calcWitnessSigHash', () => {
+    const subScript = '76a914751e76e8199196d454941c45d1b3a323f1433bd688ac';
+    assert.deepEqual(
+      lib.txscript.calcWitnessSigHash(subScript, 1, hexToBytes(segwitTxHex), 0, 1000),
+      lib.txscript.calcWitnessSigHash(subScript, 1, segwitTxHex, 0, 1000),
+    );
+  });
+
+  it('txscript.calcTaprootSignatureHash', () => {
+    // Use a P2TR-shaped pkScript so the script engine doesn't reject it.
+    const pkScript = '5120' +
+      '751e76e8199196d454941c45d1b3a323f1433bd6' +
+      '751e76e8199196d454941c45d1b3a323';
+    const prevOuts = [{script: pkScript, amount: 0}];
+    assert.deepEqual(
+      lib.txscript.calcTaprootSignatureHash(0, hexToBytes(segwitTxHex), 0, prevOuts),
+      lib.txscript.calcTaprootSignatureHash(0, segwitTxHex, 0, prevOuts),
+    );
+  });
+
+  it('txscript.rawTxInSignature', () => {
+    const subScript = '76a914751e76e8199196d454941c45d1b3a323f1433bd688ac';
+    assert.deepEqual(
+      lib.txscript.rawTxInSignature(hexToBytes(legacyTxHex), 0, subScript, 1, privKeyBytes),
+      lib.txscript.rawTxInSignature(legacyTxHex, 0, subScript, 1, privKeyHex),
+    );
+  });
+
+  it('txscript.rawTxInWitnessSignature', () => {
+    const subScript = '76a914751e76e8199196d454941c45d1b3a323f1433bd688ac';
+    assert.deepEqual(
+      lib.txscript.rawTxInWitnessSignature(hexToBytes(segwitTxHex), 0, 1000, subScript, 1, privKeyBytes),
+      lib.txscript.rawTxInWitnessSignature(segwitTxHex, 0, 1000, subScript, 1, privKeyHex),
+    );
+  });
+
+  it('txscript.witnessSignature', () => {
+    const subScript = '76a914751e76e8199196d454941c45d1b3a323f1433bd688ac';
+    const fromBytes = lib.txscript.witnessSignature(hexToBytes(segwitTxHex), 0, 1000, subScript, 1, privKeyBytes, true);
+    const fromHex = lib.txscript.witnessSignature(segwitTxHex, 0, 1000, subScript, 1, privKeyHex, true);
+    assert.equal(fromBytes.length, fromHex.length);
+    for (let i = 0; i < fromBytes.length; i++) {
+      assert.deepEqual(fromBytes[i], fromHex[i]);
+    }
+  });
+
+  it('txscript.rawTxInTaprootSignature', () => {
+    // A real P2TR pkScript so the sighash engine accepts it.
+    const xOnly = lib.btcec.schnorrSerializePubKey(
+      lib.btcec.privKeyFromBytes(privKeyBytes).publicKey,
+    );
+    const outKey = lib.txscript.computeTaprootKeyNoScript(xOnly);
+    const pkScript = new Uint8Array(34);
+    pkScript[0] = 0x51; // OP_1
+    pkScript[1] = 0x20; // push 32 bytes
+    pkScript.set(outKey, 2);
+
+    const prevOuts = [{script: pkScript, amount: 0}];
+    // Sigs are deterministic per BIP-340 — same inputs ⇒ same output.
+    assert.deepEqual(
+      lib.txscript.rawTxInTaprootSignature(hexToBytes(segwitTxHex), 0, '', 0, privKeyBytes, prevOuts),
+      lib.txscript.rawTxInTaprootSignature(segwitTxHex,             0, '', 0, privKeyHex,   prevOuts),
+    );
   });
 });

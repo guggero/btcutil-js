@@ -99,3 +99,70 @@ describe('tx', () => {
     assert.equal(txid, wtxid);
   });
 });
+
+describe('tx: encode round-trip', () => {
+  it('decode → encode preserves legacy tx bytes', async () => {
+    const decoded = await tx.decode(legacyTxHex);
+    const encoded = await tx.encode(decoded);
+    assert.equal(toHex(encoded), legacyTxHex);
+  });
+
+  it('decode → encode preserves segwit tx bytes', async () => {
+    const decoded = await tx.decode(segwitTxHex);
+    const encoded = await tx.encode(decoded);
+    assert.equal(toHex(encoded), segwitTxHex);
+  });
+
+  it('encoded tx has the same txid as the original', async () => {
+    const decoded = await tx.decode(segwitTxHex);
+    const encoded = await tx.encode(decoded);
+    const reTxid = await tx.hash(toHex(encoded));
+    assert.equal(reTxid, decoded.txid);
+  });
+
+  it('decode → encode → decode is idempotent', async () => {
+    const d1 = await tx.decode(segwitTxHex);
+    const e1 = await tx.encode(d1);
+    const d2 = await tx.decode(toHex(e1));
+    assert.equal(d2.txid, d1.txid);
+    assert.equal(d2.wtxid, d1.wtxid);
+    assert.equal(d2.version, d1.version);
+    assert.equal(d2.locktime, d1.locktime);
+    assert.equal(d2.inputs.length, d1.inputs.length);
+    assert.equal(d2.outputs.length, d1.outputs.length);
+  });
+
+  it('encode accepts modified fields', async () => {
+    const decoded = await tx.decode(legacyTxHex);
+    decoded.locktime = 12345;
+    const encoded = await tx.encode(decoded);
+    const redecoded = await tx.decode(toHex(encoded));
+    assert.equal(redecoded.locktime, 12345);
+  });
+
+  it('encode accepts a newly constructed tx', async () => {
+    const tx1 = {
+      version: 2,
+      locktime: 0,
+      inputs: [{
+        txid: '0000000000000000000000000000000000000000000000000000000000000001',
+        vout: 0,
+        scriptSig: new Uint8Array([0x00]),
+        sequence: 0xffffffff,
+        witness: [],
+      }],
+      outputs: [{
+        value: 50000,
+        scriptPubKey: new Uint8Array([0x00, 0x14,
+          0x75, 0x1e, 0x76, 0xe8, 0x19, 0x91, 0x96, 0xd4, 0x54, 0x94,
+          0x1c, 0x45, 0xd1, 0xb3, 0xa3, 0x23, 0xf1, 0x43, 0x3b, 0xd6,
+        ]),
+      }],
+    };
+    const encoded = await tx.encode(tx1);
+    assert.ok(encoded instanceof Uint8Array);
+    const redecoded = await tx.decode(toHex(encoded));
+    assert.equal(redecoded.version, 2);
+    assert.equal(redecoded.outputs[0].value, 50000);
+  });
+});

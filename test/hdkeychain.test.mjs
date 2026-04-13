@@ -105,6 +105,23 @@ describe('hdkeychain', () => {
     await assert.rejects(() => hdkeychain.deriveHardened(xpub, 0));
   });
 
+  // Regression: security-review.md M-4
+  it('deriveHardened rejects index >= HardenedKeyStart (no overflow)', async () => {
+    const xprv = await hdkeychain.newMaster(testSeed);
+    // 2^31 would wrap to non-hardened derivation, silently producing a
+    // different key. Must error out instead.
+    await assert.rejects(() => hdkeychain.deriveHardened(xprv, 0x80000000));
+    await assert.rejects(() => hdkeychain.deriveHardened(xprv, 0xffffffff));
+  });
+
+  it('derive rejects hardened indices and negative input', async () => {
+    const xprv = await hdkeychain.newMaster(testSeed);
+    // Hardened — caller should use deriveHardened.
+    await assert.rejects(() => hdkeychain.derive(xprv, 0x80000000));
+    // Negative — JS uint32(-1) would silently land on 0xffffffff (hardened).
+    await assert.rejects(() => hdkeychain.derive(xprv, -1));
+  });
+
   it('derivePath rejects invalid path component', async () => {
     const xprv = await hdkeychain.newMaster(testSeed);
     await assert.rejects(() => hdkeychain.derivePath(xprv, 'm/abc/0'));

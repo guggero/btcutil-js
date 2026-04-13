@@ -9,7 +9,10 @@ package main
 import "syscall/js"
 
 func main() {
-	js.Global().Set("btcutil", map[string]any{
+	// The bridge namespace is passed to the JS-side readiness callback as
+	// its sole argument (see __btcutilReady below) — we no longer publish
+	// it on globalThis to avoid polluting the page (security-review L-1).
+	btcutilNs := map[string]any{
 		"base58": map[string]any{
 			"encode":      js.FuncOf(base58Encode),
 			"decode":      js.FuncOf(base58Decode),
@@ -74,9 +77,11 @@ func main() {
 			"witnessHash": js.FuncOf(txWitnessHash),
 			"hasWitness":  js.FuncOf(txHasWitness),
 			"decode":      js.FuncOf(txDecode),
+			"encode":      js.FuncOf(txEncode),
 		},
 		"psbt": map[string]any{
 			"decode":     js.FuncOf(psbtDecode),
+			"encode":     js.FuncOf(psbtEncode),
 			"isComplete": js.FuncOf(psbtIsComplete),
 			"extract":    js.FuncOf(psbtExtract),
 			"getFee":     js.FuncOf(psbtGetFee),
@@ -101,6 +106,7 @@ func main() {
 			"sumUtxoInputValues": js.FuncOf(psbtSumUtxoInputValues),
 			"inputsReadyToSign":  js.FuncOf(psbtInputsReadyToSign),
 			"sanityCheck":        js.FuncOf(psbtSanityCheck),
+			"allUnknowns":        js.FuncOf(psbtAllUnknowns),
 		},
 		"gcs": map[string]any{
 			"buildFilter": js.FuncOf(gcsBuildFilter),
@@ -183,11 +189,13 @@ func main() {
 			"newHashFromStr": js.FuncOf(chainhashNewHashFromStr),
 			"hashToString":   js.FuncOf(chainhashHashToString),
 		},
-	})
+	}
 
-	// Signal readiness.
-	if cb := js.Global().Get("onBtcutilReady"); cb.Type() == js.TypeFunction {
-		cb.Invoke()
+	// Signal readiness — pass the bridge namespace as the callback's sole
+	// argument. The TS loader sets this temporary callback before run() and
+	// deletes it inside the handler, so it doesn't persist on globalThis.
+	if cb := js.Global().Get("__btcutilReady"); cb.Type() == js.TypeFunction {
+		cb.Invoke(btcutilNs)
 	}
 
 	// Block forever to keep the Go runtime alive.

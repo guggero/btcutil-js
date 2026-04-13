@@ -35,47 +35,47 @@ const psbtHex = buildMinimalPsbt();
 const psbtBase64 = Buffer.from(psbtHex, 'hex').toString('base64');
 
 // ---------------------------------------------------------------------------
-// read-only tests (existing)
+// read-only tests
 // ---------------------------------------------------------------------------
 
 describe('psbt: read-only', () => {
   it('decode returns structured info', async () => {
     const info = await psbt.decode(psbtBase64);
-    assert.equal(info.version, 2);
-    assert.equal(info.inputCount, 1);
-    assert.equal(info.outputCount, 1);
+    assert.equal(info.unsignedTx.version, 2);
+    assert.equal(info.inputs.length, 1);
+    assert.equal(info.outputs.length, 1);
     assert.equal(info.isComplete, false);
-    assert.equal(info.outputs[0].value, 1000);
-    assert.equal(info.inputs[0].previousVout, 0);
-    assert.equal(info.inputs[0].hasNonWitnessUtxo, false);
+    assert.equal(info.unsignedTx.outputs[0].value, 1000);
+    assert.equal(info.unsignedTx.inputs[0].vout, 0);
+    assert.equal(info.inputs[0].nonWitnessUtxo, undefined);
   });
 
   it('decode returns enhanced per-input fields', async () => {
     const info = await psbt.decode(psbtBase64);
     const inp = info.inputs[0];
-    assert.ok(Array.isArray(inp.partialSigs));
-    assert.equal(inp.partialSigs.length, 0);
-    assert.ok(Array.isArray(inp.bip32Derivation));
-    assert.ok(Array.isArray(inp.taprootScriptSpendSigs));
-    assert.ok(Array.isArray(inp.taprootLeafScripts));
-    assert.ok(Array.isArray(inp.taprootBip32Derivation));
-    assert.ok(inp.finalScriptSig instanceof Uint8Array);
-    assert.ok(inp.redeemScript instanceof Uint8Array);
-    assert.ok(inp.witnessScript instanceof Uint8Array);
-    assert.ok(inp.taprootKeySpendSig instanceof Uint8Array);
-    assert.ok(inp.taprootInternalKey instanceof Uint8Array);
-    assert.ok(inp.taprootMerkleRoot instanceof Uint8Array);
+    // Optional fields are absent (undefined) on a freshly-built minimal PSBT.
+    assert.equal(inp.partialSigs, undefined);
+    assert.equal(inp.bip32Derivation, undefined);
+    assert.equal(inp.taprootScriptSpendSigs, undefined);
+    assert.equal(inp.taprootLeafScripts, undefined);
+    assert.equal(inp.taprootBip32Derivation, undefined);
+    assert.equal(inp.finalScriptSig, undefined);
+    assert.equal(inp.redeemScript, undefined);
+    assert.equal(inp.witnessScript, undefined);
+    assert.equal(inp.taprootKeySpendSig, undefined);
+    assert.equal(inp.taprootInternalKey, undefined);
+    assert.equal(inp.taprootMerkleRoot, undefined);
   });
 
   it('decode returns enhanced per-output fields', async () => {
     const info = await psbt.decode(psbtBase64);
     const out = info.outputs[0];
-    assert.ok(out.redeemScript instanceof Uint8Array);
-    assert.ok(out.witnessScript instanceof Uint8Array);
-    assert.ok(Array.isArray(out.bip32Derivation));
-    assert.ok(out.taprootInternalKey instanceof Uint8Array);
-    assert.ok(out.taprootTapTree instanceof Uint8Array);
-    assert.ok(Array.isArray(out.taprootBip32Derivation));
+    assert.equal(out.redeemScript, undefined);
+    assert.equal(out.witnessScript, undefined);
+    assert.equal(out.bip32Derivation, undefined);
+    assert.equal(out.taprootInternalKey, undefined);
+    assert.equal(out.taprootTapTree, undefined);
+    assert.equal(out.taprootBip32Derivation, undefined);
   });
 
   it('isComplete returns false for unsigned PSBT', async () => {
@@ -126,39 +126,39 @@ describe('psbt: creation', () => {
     );
     assert.equal(typeof p, 'string'); // base64
     const info = await psbt.decode(p);
-    assert.equal(info.inputCount, 1);
-    assert.equal(info.outputCount, 1);
-    assert.equal(info.outputs[0].value, 1000);
+    assert.equal(info.inputs.length, 1);
+    assert.equal(info.outputs.length, 1);
+    assert.equal(info.unsignedTx.outputs[0].value, 1000);
   });
 
   it('create with custom version and locktime', async () => {
     const txid = '0000000000000000000000000000000000000000000000000000000000000001';
     const p = await psbt.create(
       [{ txid, vout: 0 }],
-      [{ value: 500, script: '' }],
+      [{ value: 500, script: '6a' }],
       1,   // version
       100, // locktime
     );
     const info = await psbt.decode(p);
-    assert.equal(info.version, 1);
-    assert.equal(info.locktime, 100);
+    assert.equal(info.unsignedTx.version, 1);
+    assert.equal(info.unsignedTx.locktime, 100);
   });
 
   it('create with custom sequence', async () => {
     const txid = '0000000000000000000000000000000000000000000000000000000000000001';
     const p = await psbt.create(
       [{ txid, vout: 0, sequence: 0xfffffffe }],
-      [{ value: 500, script: '' }],
+      [{ value: 500, script: '6a' }],
     );
     const info = await psbt.decode(p);
-    assert.equal(info.inputs[0].sequence, 0xfffffffe);
+    assert.equal(info.unsignedTx.inputs[0].sequence, 0xfffffffe);
   });
 
   it('fromUnsignedTx creates from raw tx', async () => {
     const p = await psbt.fromUnsignedTx(unsignedTxHex);
     const info = await psbt.decode(p);
-    assert.equal(info.inputCount, 1);
-    assert.equal(info.outputCount, 1);
+    assert.equal(info.inputs.length, 1);
+    assert.equal(info.outputs.length, 1);
   });
 });
 
@@ -181,8 +181,10 @@ describe('psbt: updater', () => {
   it('addInWitnessUtxo attaches UTXO data', async () => {
     const p = await psbt.addInWitnessUtxo(base, 0, 50000, pkScript);
     const info = await psbt.decode(p);
-    assert.equal(info.inputs[0].witnessUtxoValue, 50000);
-    assert.ok(info.inputs[0].witnessUtxoScript instanceof Uint8Array);
+    assert.ok(info.inputs[0].witnessUtxo);
+    assert.equal(info.inputs[0].witnessUtxo.value, 50000);
+    assert.ok(info.inputs[0].witnessUtxo.script instanceof Uint8Array);
+    assert.equal(toHex(info.inputs[0].witnessUtxo.script), pkScript);
   });
 
   it('addInSighashType sets sighash', async () => {
@@ -200,8 +202,10 @@ describe('psbt: updater', () => {
     );
     const info = await psbt.decode(p);
     assert.equal(info.inputs[0].bip32Derivation.length, 1);
-    assert.equal(info.inputs[0].bip32Derivation[0].masterKeyFingerprint, 0x12345678);
+    // Fingerprint is now an 8-char lowercase hex string.
+    assert.equal(info.inputs[0].bip32Derivation[0].masterKeyFingerprint, '12345678');
     assert.deepEqual(info.inputs[0].bip32Derivation[0].path, [44, 0, 0, 0, 0]);
+    assert.equal(info.inputs[0].bip32Derivation[0].pathStr, 'm/44/0/0/0/0');
   });
 
   it('addOutBip32Derivation attaches output derivation', async () => {
@@ -211,7 +215,7 @@ describe('psbt: updater', () => {
     );
     const info = await psbt.decode(p);
     assert.equal(info.outputs[0].bip32Derivation.length, 1);
-    assert.equal(info.outputs[0].bip32Derivation[0].masterKeyFingerprint, 0xaabbccdd);
+    assert.equal(info.outputs[0].bip32Derivation[0].masterKeyFingerprint, 'aabbccdd');
   });
 
   it('inputsReadyToSign fails without UTXO', async () => {
@@ -220,7 +224,7 @@ describe('psbt: updater', () => {
 
   it('inputsReadyToSign passes with UTXO', async () => {
     const p = await psbt.addInWitnessUtxo(base, 0, 50000, pkScript);
-    await psbt.inputsReadyToSign(p); // should not throw
+    await psbt.inputsReadyToSign(p);
   });
 
   it('sumUtxoInputValues returns sum', async () => {
@@ -232,7 +236,7 @@ describe('psbt: updater', () => {
   it('getFee works with UTXO attached', async () => {
     const p = await psbt.addInWitnessUtxo(base, 0, 50000, pkScript);
     const fee = await psbt.getFee(p);
-    assert.equal(fee, 50000 - 49000); // 1000 sats fee
+    assert.equal(fee, 50000 - 49000);
   });
 });
 
@@ -245,17 +249,17 @@ describe('psbt: sorting', () => {
     const txid = '0000000000000000000000000000000000000000000000000000000000000001';
     const p = await psbt.create(
       [{ txid, vout: 0 }],
-      [{ value: 1000, script: '' }],
+      [{ value: 1000, script: '6a' }],
     );
     const sorted = await psbt.inPlaceSort(p);
     assert.equal(typeof sorted, 'string');
     const info = await psbt.decode(sorted);
-    assert.equal(info.inputCount, 1);
+    assert.equal(info.inputs.length, 1);
   });
 });
 
 // ---------------------------------------------------------------------------
-// signing + finalization (negative cases — full signing needs real keys)
+// signing + finalization (negative cases)
 // ---------------------------------------------------------------------------
 
 describe('psbt: finalization', () => {
@@ -263,7 +267,7 @@ describe('psbt: finalization', () => {
     const txid = '0000000000000000000000000000000000000000000000000000000000000001';
     let p = await psbt.create(
       [{ txid, vout: 0 }],
-      [{ value: 1000, script: '' }],
+      [{ value: 1000, script: '6a' }],
     );
     p = await psbt.addInWitnessUtxo(p, 0, 2000, '0014751e76e8199196d454941c45d1b3a323f1433bd6');
     await assert.rejects(() => psbt.finalize(p, 0));
@@ -273,7 +277,7 @@ describe('psbt: finalization', () => {
     const txid = '0000000000000000000000000000000000000000000000000000000000000001';
     const p = await psbt.create(
       [{ txid, vout: 0 }],
-      [{ value: 1000, script: '' }],
+      [{ value: 1000, script: '6a' }],
     );
     await assert.rejects(() => psbt.maybeFinalizeAll(p));
   });
@@ -282,75 +286,202 @@ describe('psbt: finalization', () => {
     const txid = '0000000000000000000000000000000000000000000000000000000000000001';
     let p = await psbt.create(
       [{ txid, vout: 0 }],
-      [{ value: 1000, script: '' }],
+      [{ value: 1000, script: '6a' }],
     );
     p = await psbt.addInWitnessUtxo(p, 0, 2000, '0014751e76e8199196d454941c45d1b3a323f1433bd6');
-    // Empty sig should be rejected.
     await assert.rejects(() => psbt.sign(p, 0, '', '0200'));
   });
 });
 
 // ---------------------------------------------------------------------------
-// full P2WPKH workflow: create → UTXO → sign → finalize → extract
+// full P2WPKH workflow
 // ---------------------------------------------------------------------------
 
 describe('psbt: full P2WPKH workflow', () => {
   it('create, sign, finalize, extract', async () => {
-    // Generate a key pair.
     const kp = await btcec.newPrivateKey();
-
-    // Derive the P2WPKH address and pkScript.
-    const pkHash = await chainhash.hash(toHex(kp.publicKey)); // placeholder
-    // Actually use hash160 for the real pkScript.
     const { hash: realHash } = await import('../dist/index.js');
     const h160 = await realHash.hash160(kp.publicKey);
     const addr = await address.fromWitnessPubKeyHash(h160);
     const script = await txscript.payToAddrScript(addr);
 
-    // Create a PSBT spending a fake input to a P2WPKH output.
     const fakeTxid = '0101010101010101010101010101010101010101010101010101010101010101';
     let p = await psbt.create(
       [{ txid: fakeTxid, vout: 0 }],
       [{ value: 49000, script }],
     );
-
-    // Add witness UTXO.
     p = await psbt.addInWitnessUtxo(p, 0, 50000, script);
 
-    // Compute the sighash and sign.
     const info = await psbt.decode(p);
-    assert.equal(info.inputs[0].witnessUtxoValue, 50000);
+    assert.equal(info.inputs[0].witnessUtxo.value, 50000);
 
-    // Use txscript to compute witness signature (sig + pubkey).
-    // We need the raw unsigned tx from the PSBT.
-    const rawPsbt = await psbt.fromBase64(p);
-    // Re-parse to get the unsigned tx bytes for signing.
-    // For P2WPKH, the subscript is the pkScript.
     const witness = await txscript.witnessSignature(
-      unsignedTxHex, 0, 50000, toHex(script), 1, // SIGHASH_ALL
+      unsignedTxHex, 0, 50000, toHex(script), 1,
       kp.privateKey, true,
     );
-    assert.ok(Array.isArray(witness));
-    assert.equal(witness.length, 2); // [sig, pubkey]
+    assert.equal(witness.length, 2);
 
-    // Attach the signature via psbt.sign.
-    const sigResult = await psbt.sign(
-      p, 0, witness[0], kp.publicKey,
-    );
-    assert.equal(sigResult.outcome, 0); // SignSuccessful
+    const sigResult = await psbt.sign(p, 0, witness[0], kp.publicKey);
+    assert.equal(sigResult.outcome, 0);
     p = sigResult.psbt;
 
-    // Verify the partial sig is now in the decoded PSBT.
     const info2 = await psbt.decode(p);
     assert.equal(info2.inputs[0].partialSigs.length, 1);
 
-    // Finalize.
     p = await psbt.maybeFinalizeAll(p);
     assert.equal(await psbt.isComplete(p), true);
 
-    // Extract the final transaction.
     const rawTx = await psbt.extract(p);
     assert.ok(rawTx instanceof Uint8Array);
     assert.ok(rawTx.length > 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// encode round-trip
+// ---------------------------------------------------------------------------
+
+describe('psbt: decode includes unsignedTx', () => {
+  it('minimal PSBT decode includes unsignedTx field', async () => {
+    const info = await psbt.decode(psbtBase64);
+    assert.ok(info.unsignedTx);
+    assert.equal(info.unsignedTx.version, 2);
+    assert.equal(info.unsignedTx.inputs.length, 1);
+    assert.equal(info.unsignedTx.outputs.length, 1);
+    assert.equal(info.unsignedTx.outputs[0].value, 1000);
+  });
+});
+
+describe('psbt: encode round-trip', () => {
+  it('encode(decode(psbt)) preserves the PSBT', async () => {
+    const decoded = await psbt.decode(psbtBase64);
+    const encoded = await psbt.encode(decoded);
+    assert.equal(encoded, psbtBase64);
+  });
+
+  it('encode preserves input/output counts', async () => {
+    const txid = '0000000000000000000000000000000000000000000000000000000000000001';
+    const pkt = await psbt.create(
+      [{ txid, vout: 0 }],
+      [{ value: 49000, script: '0014751e76e8199196d454941c45d1b3a323f1433bd6' }],
+    );
+    const decoded = await psbt.decode(pkt);
+    const encoded = await psbt.encode(decoded);
+    const redecoded = await psbt.decode(encoded);
+    assert.equal(redecoded.inputs.length, decoded.inputs.length);
+    assert.equal(redecoded.outputs.length, decoded.outputs.length);
+    assert.equal(redecoded.unsignedTx.version, decoded.unsignedTx.version);
+    assert.equal(redecoded.unsignedTx.locktime, decoded.unsignedTx.locktime);
+  });
+
+  it('encode preserves witness UTXO fields', async () => {
+    const txid = '0000000000000000000000000000000000000000000000000000000000000001';
+    const pkScript = '0014751e76e8199196d454941c45d1b3a323f1433bd6';
+    let pkt = await psbt.create(
+      [{ txid, vout: 0 }],
+      [{ value: 49000, script: pkScript }],
+    );
+    pkt = await psbt.addInWitnessUtxo(pkt, 0, 50000, pkScript);
+
+    const decoded = await psbt.decode(pkt);
+    const encoded = await psbt.encode(decoded);
+    const redecoded = await psbt.decode(encoded);
+
+    assert.equal(redecoded.inputs[0].witnessUtxo.value, 50000);
+    assert.equal(toHex(redecoded.inputs[0].witnessUtxo.script), pkScript);
+  });
+
+  it('encode preserves sighash type', async () => {
+    const txid = '0000000000000000000000000000000000000000000000000000000000000001';
+    const pkScript = '0014751e76e8199196d454941c45d1b3a323f1433bd6';
+    let pkt = await psbt.create(
+      [{ txid, vout: 0 }],
+      [{ value: 49000, script: pkScript }],
+    );
+    pkt = await psbt.addInWitnessUtxo(pkt, 0, 50000, pkScript);
+    pkt = await psbt.addInSighashType(pkt, 0, 1);
+
+    const decoded = await psbt.decode(pkt);
+    const encoded = await psbt.encode(decoded);
+    const redecoded = await psbt.decode(encoded);
+
+    assert.equal(redecoded.inputs[0].sighashType, 1);
+  });
+
+  it('encode preserves BIP-32 derivation', async () => {
+    const txid = '0000000000000000000000000000000000000000000000000000000000000001';
+    const pkScript = '0014751e76e8199196d454941c45d1b3a323f1433bd6';
+    let pkt = await psbt.create(
+      [{ txid, vout: 0 }],
+      [{ value: 49000, script: pkScript }],
+    );
+    pkt = await psbt.addInWitnessUtxo(pkt, 0, 50000, pkScript);
+
+    const { publicKey } = await btcec.newPrivateKey();
+    pkt = await psbt.addInBip32Derivation(
+      pkt, 0, 0xdeadbeef, [44, 0, 0, 0, 5], publicKey,
+    );
+
+    const decoded = await psbt.decode(pkt);
+    const encoded = await psbt.encode(decoded);
+    const redecoded = await psbt.decode(encoded);
+
+    const deriv = redecoded.inputs[0].bip32Derivation;
+    assert.equal(deriv.length, 1);
+    assert.equal(deriv[0].masterKeyFingerprint, 'deadbeef');
+    assert.deepEqual(deriv[0].path, [44, 0, 0, 0, 5]);
+  });
+
+  it('encode preserves modified locktime', async () => {
+    const decoded = await psbt.decode(psbtBase64);
+    decoded.unsignedTx.locktime = 500000;
+    const encoded = await psbt.encode(decoded);
+    const redecoded = await psbt.decode(encoded);
+    assert.equal(redecoded.unsignedTx.locktime, 500000);
+  });
+
+  it('encode round-trips after partial signing', async () => {
+    const kp = await btcec.newPrivateKey();
+    const pkHash = await import('../dist/index.js').then(m => m.hash.hash160(kp.publicKey));
+    const txid = '0101010101010101010101010101010101010101010101010101010101010101';
+    const pkScript = new Uint8Array([0x00, 0x14, ...pkHash]);
+
+    let pkt = await psbt.create(
+      [{ txid, vout: 0 }],
+      [{ value: 49000, script: pkScript }],
+    );
+    pkt = await psbt.addInWitnessUtxo(pkt, 0, 50000, pkScript);
+
+    const decoded = await psbt.decode(pkt);
+    const encoded = await psbt.encode(decoded);
+    assert.equal(encoded, pkt);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Empty PSBT support (improvement #7)
+// ---------------------------------------------------------------------------
+
+describe('psbt: empty PSBT support', () => {
+  it('encodes a PSBT with zero inputs and zero outputs', async () => {
+    const empty = {
+      unsignedTx: { version: 2, locktime: 0, inputs: [], outputs: [] },
+      inputs: [],
+      outputs: [],
+    };
+    const encoded = await psbt.encode(empty);
+    assert.equal(typeof encoded, 'string');
+    assert.ok(encoded.length > 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// allUnknowns helper
+// ---------------------------------------------------------------------------
+
+describe('psbt: allUnknowns', () => {
+  it('returns empty for a PSBT with no unknowns', async () => {
+    const all = await psbt.allUnknowns(psbtBase64);
+    assert.deepEqual(all, []);
   });
 });

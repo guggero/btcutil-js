@@ -12,7 +12,7 @@ verification**, **BIP-158 GCS filters**, **Bloom filter** hashing, and raw
 
 ## Prerequisites
 
-- **Go >= 1.25.0** — Install from <https://go.dev/dl/>
+- **Go >= 1.26.1** — Install from <https://go.dev/dl/>
 - **Node.js >= 18** — Install from <https://nodejs.org/>
 
 ## Building
@@ -112,6 +112,24 @@ await init(buf);
 // From a fetch Response (uses streaming compilation)
 await init(fetch('/assets/btcutil.wasm'));
 ```
+
+### Content Security Policy
+
+The library loads the Go runtime as a static ES-module import (no `eval`,
+no `Function()` constructor), so the only CSP source it requires is
+`'wasm-unsafe-eval'` for `WebAssembly.instantiate*`:
+
+```
+Content-Security-Policy: script-src 'self' 'wasm-unsafe-eval'
+```
+
+`'unsafe-eval'` is **not** required.
+
+The library also avoids polluting `globalThis` with its bridge namespace —
+the Go-side `btcutil` namespace lives in module scope, accessed only via
+the `init()` return value or the per-namespace exports. The only globals
+touched are the Go runtime shims (`fs` / `process` / `crypto`) which are
+installed conditionally by Go's standard `wasm_exec.js` only when missing.
 
 ## API
 
@@ -228,8 +246,8 @@ BIP-32 hierarchical deterministic key derivation.
 |--------|-------------|-------------|
 | `newMaster(seed, network?)` | `hdkeychain.NewMaster()` | Create a master extended key from a seed. |
 | `fromString(key)` | `hdkeychain.NewKeyFromString()` | Parse an xprv/xpub/tprv/tpub string. Returns `ExtendedKeyInfo`. |
-| `derive(key, index)` | `ExtendedKey.Derive()` | Derive a child key at the given index. |
-| `deriveHardened(key, index)` | `ExtendedKey.Derive()` | Derive a hardened child (adds `0x80000000` automatically). |
+| `derive(key, index)` | `ExtendedKey.Derive()` | Derive a non-hardened child. `index` must be in `[0, 2^31)`; pass hardened indices via `deriveHardened`. |
+| `deriveHardened(key, index)` | `ExtendedKey.Derive()` | Derive a hardened child (adds `0x80000000` automatically). `index` must be in `[0, 2^31)`. |
 | `derivePath(key, path)` | `ExtendedKey.Derive()` | Derive along a BIP-32 path like `"m/44'/0'/0'/0/0"`. |
 | `neuter(key)` | `ExtendedKey.Neuter()` | Convert a private key to its public counterpart. |
 | `generateSeed(length?)` | `hdkeychain.GenerateSeed()` | Generate a random seed (default 32 bytes). |
@@ -240,11 +258,15 @@ BIP-32 hierarchical deterministic key derivation.
 
 ### `bip322`
 
-BIP-322 generic signed message verification.
+BIP-322 generic signed message construction and verification.
 
 | Method | Go function | Description |
 |--------|-------------|-------------|
 | `verifyMessage(message, address, signature, network?)` | `bip322.VerifyMessage()` | Verify a BIP-322 signed message. Returns `{ valid, error? }`. |
+| `buildToSignPacketSimple(message, pkScript)` | `bip322.BuildToSignPacketSimple()` | Build the to-sign PSBT for the **simple** variant (native segwit pkScripts). Returns base64. |
+| `buildToSignPacketFull(message, pkScript, txVersion, lockTime, sequence)` | `bip322.BuildToSignPacketFull()` | Build the to-sign PSBT for the **full** variant (legacy / nested-segwit pkScripts). Returns base64. |
+| `serializeTxWitness(witness)` | `bip322.SerializeTxWitness()` | Serialise a witness stack to the wire-encoded blob used as the simple-variant signature payload. |
+| `parseTxWitness(rawWitness)` | `bip322.ParseTxWitness()` | Inverse of `serializeTxWitness`. Returns the decoded witness stack. |
 
 Supports **P2WPKH**, **P2SH-P2WPKH**, **P2TR** (Taproot), and **multisig**
 address types.
@@ -271,7 +293,8 @@ Transaction utilities.
 | `hash(rawTx)` | `Tx.Hash()` | Compute the txid (double-SHA256, reversed). |
 | `witnessHash(rawTx)` | `Tx.WitnessHash()` | Compute the witness txid (wtxid). |
 | `hasWitness(rawTx)` | `Tx.HasWitness()` | Check if the transaction contains witness data. |
-| `decode(rawTx)` | `btcutil.NewTx()` | Decode into a structured object with `txid`, `wtxid`, `version`, `locktime`, `inputs[]`, `outputs[]`. |
+| `decode(rawTx)` | `btcutil.NewTx()` | Decode into a `TxDecodeResult`: `{ txid, wtxid, version, locktime, inputs[], outputs[] }`. |
+| `encode(data)` | `MsgTx.Serialize()` | Serialise a `TxData` (`{ version, locktime, inputs[], outputs[] }`) back to raw bytes. Round-trips with `decode()`. |
 
 ---
 
@@ -292,7 +315,9 @@ const rawTx = await psbt.extract(finalized);
 
 | Method | Go function | Description |
 |--------|-------------|-------------|
-| `decode(base64Psbt)` | `psbt.NewFromRawBytes()` | Decode a PSBT with all per-input/output fields (partial sigs, BIP-32 derivation, taproot fields, etc.). |
+| `decode(base64Psbt)` | `psbt.NewFromRawBytes()` | Decode a PSBT into a `PsbtDecodeResult`: `{ unsignedTx, xpubs, unknowns, inputs[], outputs[], fee, isComplete }`. The embedded `unsignedTx` is itself a `TxDecodeResult`. Per-input/output PSBT fields (partial sigs, BIP-32 derivation, taproot, witness UTXO, …) are populated when present. |
+| `encode(data)` | `Packet.Serialize()` | Re-encode a `PsbtData` (or full `PsbtDecodeResult`) back to base64. Round-trips with `decode()`. Accepts empty PSBTs (zero inputs / zero outputs). |
+| `allUnknowns(base64Psbt)` | walks `Packet.Unknowns` | Flatten unknown TLV entries from all three levels into one stream. Returns `[{ level: 'global'\|'input'\|'output', index, key, value }]` (`index` is `-1` for global). |
 | `isComplete(base64Psbt)` | `Packet.IsComplete()` | Check if all inputs are finalized. |
 | `extract(base64Psbt)` | `psbt.Extract()` | Extract the final signed transaction. |
 | `getFee(base64Psbt)` | `Packet.GetTxFee()` | Get the fee in satoshis (requires UTXO info). |

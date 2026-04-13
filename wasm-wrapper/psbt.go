@@ -4,6 +4,8 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
+	"fmt"
 	"syscall/js"
 
 	btcpsbt "github.com/btcsuite/btcd/btcutil/psbt"
@@ -23,47 +25,421 @@ func reserialize(pkt *btcpsbt.Packet) map[string]any {
 	return okResult(b64)
 }
 
-func serializeBip32Derivation(d []*btcpsbt.Bip32Derivation) []any {
-	out := make([]any, len(d))
-	for i, bd := range d {
-		path := make([]any, len(bd.Bip32Path))
-		for j, p := range bd.Bip32Path {
-			path[j] = int64(p)
-		}
-		out[i] = map[string]any{
-			"pubKey":               bytesToJS(bd.PubKey),
-			"masterKeyFingerprint": int64(bd.MasterKeyFingerprint),
-			"path":                 path,
-		}
+// nonNilBytes returns nil if the slice is empty, otherwise a non-aliased copy.
+// PSBT TLV encoding distinguishes "field absent" (nil) from "field present
+// with an empty value".
+func nonNilBytes(b HexBytes) []byte {
+	if len(b) == 0 {
+		return nil
 	}
-	return out
-}
-
-func serializeTaprootBip32Derivation(
-	d []*btcpsbt.TaprootBip32Derivation,
-) []any {
-	out := make([]any, len(d))
-	for i, td := range d {
-		leafHashes := make([]any, len(td.LeafHashes))
-		for j, lh := range td.LeafHashes {
-			leafHashes[j] = bytesToJS(lh)
-		}
-		path := make([]any, len(td.Bip32Path))
-		for j, p := range td.Bip32Path {
-			path[j] = int64(p)
-		}
-		out[i] = map[string]any{
-			"xOnlyPubKey":          bytesToJS(td.XOnlyPubKey),
-			"leafHashes":           leafHashes,
-			"masterKeyFingerprint": int64(td.MasterKeyFingerprint),
-			"path":                 path,
-		}
-	}
-	return out
+	return []byte(b)
 }
 
 // ---------------------------------------------------------------------------
-// decode (enhanced)
+// btcpsbt → JSON
+// ---------------------------------------------------------------------------
+
+func bip32DerivationToJSON(d []*btcpsbt.Bip32Derivation) []Bip32DerivationJSON {
+	if len(d) == 0 {
+		return nil
+	}
+	out := make([]Bip32DerivationJSON, len(d))
+	for i, bd := range d {
+		out[i] = Bip32DerivationJSON{
+			PubKey:               HexBytes(bd.PubKey),
+			MasterKeyFingerprint: HexUint32(bd.MasterKeyFingerprint),
+			Path:                 bd.Bip32Path,
+			PathStr:              formatBip32Path(bd.Bip32Path),
+		}
+	}
+	return out
+}
+
+func bip32DerivationFromJSON(
+	d []Bip32DerivationJSON,
+) []*btcpsbt.Bip32Derivation {
+
+	if len(d) == 0 {
+		return nil
+	}
+	out := make([]*btcpsbt.Bip32Derivation, len(d))
+	for i := range d {
+		bd := &d[i]
+		out[i] = &btcpsbt.Bip32Derivation{
+			PubKey:               []byte(bd.PubKey),
+			MasterKeyFingerprint: uint32(bd.MasterKeyFingerprint),
+			Bip32Path:            bd.effectivePath(),
+		}
+	}
+	return out
+}
+
+func taprootBip32DerivationToJSON(
+	d []*btcpsbt.TaprootBip32Derivation,
+) []TaprootBip32DerivationJSON {
+
+	if len(d) == 0 {
+		return nil
+	}
+	out := make([]TaprootBip32DerivationJSON, len(d))
+	for i, td := range d {
+		leafHashes := make([]HexBytes, len(td.LeafHashes))
+		for j, lh := range td.LeafHashes {
+			leafHashes[j] = HexBytes(lh)
+		}
+		out[i] = TaprootBip32DerivationJSON{
+			XOnlyPubKey:          HexBytes(td.XOnlyPubKey),
+			LeafHashes:           leafHashes,
+			MasterKeyFingerprint: HexUint32(td.MasterKeyFingerprint),
+			Path:                 td.Bip32Path,
+			PathStr:              formatBip32Path(td.Bip32Path),
+		}
+	}
+	return out
+}
+
+func taprootBip32DerivationFromJSON(
+	d []TaprootBip32DerivationJSON,
+) []*btcpsbt.TaprootBip32Derivation {
+
+	if len(d) == 0 {
+		return nil
+	}
+	out := make([]*btcpsbt.TaprootBip32Derivation, len(d))
+	for i := range d {
+		td := &d[i]
+		var leafHashes [][]byte
+		if len(td.LeafHashes) > 0 {
+			leafHashes = make([][]byte, len(td.LeafHashes))
+			for j, lh := range td.LeafHashes {
+				leafHashes[j] = []byte(lh)
+			}
+		}
+		out[i] = &btcpsbt.TaprootBip32Derivation{
+			XOnlyPubKey:          []byte(td.XOnlyPubKey),
+			LeafHashes:           leafHashes,
+			MasterKeyFingerprint: uint32(td.MasterKeyFingerprint),
+			Bip32Path:            td.effectivePath(),
+		}
+	}
+	return out
+}
+
+func unknownsToJSON(unknowns []*btcpsbt.Unknown) []UnknownJSON {
+	if len(unknowns) == 0 {
+		return nil
+	}
+	out := make([]UnknownJSON, len(unknowns))
+	for i, u := range unknowns {
+		out[i] = UnknownJSON{
+			Key:   HexBytes(u.Key),
+			Value: HexBytes(u.Value),
+		}
+	}
+	return out
+}
+
+func unknownsFromJSON(unknowns []UnknownJSON) []*btcpsbt.Unknown {
+	if len(unknowns) == 0 {
+		return nil
+	}
+	out := make([]*btcpsbt.Unknown, len(unknowns))
+	for i, u := range unknowns {
+		out[i] = &btcpsbt.Unknown{
+			Key:   []byte(u.Key),
+			Value: []byte(u.Value),
+		}
+	}
+	return out
+}
+
+func partialSigsToJSON(sigs []*btcpsbt.PartialSig) []PartialSigJSON {
+	if len(sigs) == 0 {
+		return nil
+	}
+	out := make([]PartialSigJSON, len(sigs))
+	for i, ps := range sigs {
+		out[i] = PartialSigJSON{
+			PubKey:    HexBytes(ps.PubKey),
+			Signature: HexBytes(ps.Signature),
+		}
+	}
+	return out
+}
+
+func partialSigsFromJSON(sigs []PartialSigJSON) []*btcpsbt.PartialSig {
+	if len(sigs) == 0 {
+		return nil
+	}
+	out := make([]*btcpsbt.PartialSig, len(sigs))
+	for i, ps := range sigs {
+		out[i] = &btcpsbt.PartialSig{
+			PubKey:    []byte(ps.PubKey),
+			Signature: []byte(ps.Signature),
+		}
+	}
+	return out
+}
+
+func taprootScriptSpendSigsToJSON(
+	sigs []*btcpsbt.TaprootScriptSpendSig,
+) []TaprootScriptSpendSigJSON {
+
+	if len(sigs) == 0 {
+		return nil
+	}
+	out := make([]TaprootScriptSpendSigJSON, len(sigs))
+	for i, ss := range sigs {
+		out[i] = TaprootScriptSpendSigJSON{
+			XOnlyPubKey: HexBytes(ss.XOnlyPubKey),
+			LeafHash:    HexBytes(ss.LeafHash),
+			Signature:   HexBytes(ss.Signature),
+			SigHash:     uint32(ss.SigHash),
+		}
+	}
+	return out
+}
+
+func taprootScriptSpendSigsFromJSON(
+	sigs []TaprootScriptSpendSigJSON,
+) []*btcpsbt.TaprootScriptSpendSig {
+
+	if len(sigs) == 0 {
+		return nil
+	}
+	out := make([]*btcpsbt.TaprootScriptSpendSig, len(sigs))
+	for i, ss := range sigs {
+		out[i] = &btcpsbt.TaprootScriptSpendSig{
+			XOnlyPubKey: []byte(ss.XOnlyPubKey),
+			LeafHash:    []byte(ss.LeafHash),
+			Signature:   []byte(ss.Signature),
+			SigHash:     txscriptSigHashType(int(ss.SigHash)),
+		}
+	}
+	return out
+}
+
+func taprootLeafScriptsToJSON(
+	leaves []*btcpsbt.TaprootTapLeafScript,
+) []TaprootLeafScriptJSON {
+
+	if len(leaves) == 0 {
+		return nil
+	}
+	out := make([]TaprootLeafScriptJSON, len(leaves))
+	for i, ls := range leaves {
+		out[i] = TaprootLeafScriptJSON{
+			ControlBlock: HexBytes(ls.ControlBlock),
+			Script:       HexBytes(ls.Script),
+			LeafVersion:  uint8(ls.LeafVersion),
+		}
+	}
+	return out
+}
+
+func taprootLeafScriptsFromJSON(
+	leaves []TaprootLeafScriptJSON,
+) []*btcpsbt.TaprootTapLeafScript {
+
+	if len(leaves) == 0 {
+		return nil
+	}
+	out := make([]*btcpsbt.TaprootTapLeafScript, len(leaves))
+	for i, ls := range leaves {
+		out[i] = &btcpsbt.TaprootTapLeafScript{
+			ControlBlock: []byte(ls.ControlBlock),
+			Script:       []byte(ls.Script),
+			LeafVersion:  txscriptLeafVersion(int(ls.LeafVersion)),
+		}
+	}
+	return out
+}
+
+func xpubsToJSON(xpubs []btcpsbt.XPub) []XPubJSON {
+	if len(xpubs) == 0 {
+		return nil
+	}
+	out := make([]XPubJSON, len(xpubs))
+	for i, xp := range xpubs {
+		out[i] = XPubJSON{
+			ExtendedKey:          HexBytes(xp.ExtendedKey),
+			MasterKeyFingerprint: HexUint32(xp.MasterKeyFingerprint),
+			Path:                 xp.Bip32Path,
+			PathStr:              formatBip32Path(xp.Bip32Path),
+		}
+	}
+	return out
+}
+
+func xpubsFromJSON(xpubs []XPubJSON) []btcpsbt.XPub {
+	if len(xpubs) == 0 {
+		return nil
+	}
+	out := make([]btcpsbt.XPub, len(xpubs))
+	for i := range xpubs {
+		xp := &xpubs[i]
+		out[i] = btcpsbt.XPub{
+			ExtendedKey:          []byte(xp.ExtendedKey),
+			MasterKeyFingerprint: uint32(xp.MasterKeyFingerprint),
+			Bip32Path:            xp.effectivePath(),
+		}
+	}
+	return out
+}
+
+// psbtToJSON builds the full decode-shape PsbtJSON.
+func psbtToJSON(pkt *btcpsbt.Packet) PsbtJSON {
+	inputs := make([]PsbtInputJSON, len(pkt.Inputs))
+	for i, pIn := range pkt.Inputs {
+		inp := PsbtInputJSON{
+			RedeemScript:           HexBytes(pIn.RedeemScript),
+			WitnessScript:          HexBytes(pIn.WitnessScript),
+			PartialSigs:            partialSigsToJSON(pIn.PartialSigs),
+			FinalScriptSig:         HexBytes(pIn.FinalScriptSig),
+			FinalScriptWitness:     HexBytes(pIn.FinalScriptWitness),
+			Bip32Derivation:        bip32DerivationToJSON(pIn.Bip32Derivation),
+			TaprootKeySpendSig:     HexBytes(pIn.TaprootKeySpendSig),
+			TaprootInternalKey:     HexBytes(pIn.TaprootInternalKey),
+			TaprootMerkleRoot:      HexBytes(pIn.TaprootMerkleRoot),
+			TaprootScriptSpendSigs: taprootScriptSpendSigsToJSON(pIn.TaprootScriptSpendSig),
+			TaprootLeafScripts:     taprootLeafScriptsToJSON(pIn.TaprootLeafScript),
+			TaprootBip32Derivation: taprootBip32DerivationToJSON(pIn.TaprootBip32Derivation),
+			Unknowns:               unknownsToJSON(pIn.Unknowns),
+		}
+		if pIn.SighashType != 0 {
+			sh := uint32(pIn.SighashType)
+			inp.SighashType = &sh
+		}
+		if pIn.NonWitnessUtxo != nil {
+			var buf bytes.Buffer
+			_ = pIn.NonWitnessUtxo.Serialize(&buf)
+			inp.NonWitnessUtxo = HexBytes(buf.Bytes())
+		}
+		if pIn.WitnessUtxo != nil {
+			inp.WitnessUtxo = &WitnessUtxoJSON{
+				Value:  pIn.WitnessUtxo.Value,
+				Script: HexBytes(pIn.WitnessUtxo.PkScript),
+			}
+		}
+		inputs[i] = inp
+	}
+
+	outputs := make([]PsbtOutputJSON, len(pkt.Outputs))
+	for i, pOut := range pkt.Outputs {
+		outputs[i] = PsbtOutputJSON{
+			RedeemScript:           HexBytes(pOut.RedeemScript),
+			WitnessScript:          HexBytes(pOut.WitnessScript),
+			Bip32Derivation:        bip32DerivationToJSON(pOut.Bip32Derivation),
+			TaprootInternalKey:     HexBytes(pOut.TaprootInternalKey),
+			TaprootTapTree:         HexBytes(pOut.TaprootTapTree),
+			TaprootBip32Derivation: taprootBip32DerivationToJSON(pOut.TaprootBip32Derivation),
+			Unknowns:               unknownsToJSON(pOut.Unknowns),
+		}
+	}
+
+	fee := int64(-1)
+	if f, err := pkt.GetTxFee(); err == nil {
+		fee = int64(f)
+	}
+
+	return PsbtJSON{
+		UnsignedTx: txToJSON(pkt.UnsignedTx),
+		XPubs:      xpubsToJSON(pkt.XPubs),
+		Unknowns:   unknownsToJSON(pkt.Unknowns),
+		Inputs:     inputs,
+		Outputs:    outputs,
+		IsComplete: pkt.IsComplete(),
+		Fee:        fee,
+	}
+}
+
+// psbtFromData builds a *btcpsbt.Packet from the encode-input shape. Bypasses
+// btcpsbt.NewFromUnsignedTx's zero-input/zero-output check so fully empty
+// PSBTs (useful when building a PSBT from scratch in an editor) can round-
+// trip through encode.
+func psbtFromData(j PsbtDataJSON) (*btcpsbt.Packet, error) {
+	msgTx, err := txFromData(j.UnsignedTx)
+	if err != nil {
+		return nil, err
+	}
+	pkt := &btcpsbt.Packet{
+		UnsignedTx: msgTx,
+		Inputs:     make([]btcpsbt.PInput, len(msgTx.TxIn)),
+		Outputs:    make([]btcpsbt.POutput, len(msgTx.TxOut)),
+	}
+
+	pkt.XPubs = xpubsFromJSON(j.XPubs)
+	pkt.Unknowns = unknownsFromJSON(j.Unknowns)
+
+	for i := 0; i < len(j.Inputs) && i < len(pkt.Inputs); i++ {
+		jIn := j.Inputs[i]
+		pIn := &pkt.Inputs[i]
+
+		if len(jIn.NonWitnessUtxo) > 0 {
+			tx := wire.NewMsgTx(wire.TxVersion)
+			if err := tx.Deserialize(
+				bytes.NewReader(jIn.NonWitnessUtxo),
+			); err != nil {
+				return nil, fmt.Errorf(
+					"input[%d] nonWitnessUtxo: %w", i, err,
+				)
+			}
+			pIn.NonWitnessUtxo = tx
+		}
+
+		if jIn.WitnessUtxo != nil && len(jIn.WitnessUtxo.Script) > 0 {
+			pIn.WitnessUtxo = wire.NewTxOut(
+				jIn.WitnessUtxo.Value,
+				[]byte(jIn.WitnessUtxo.Script),
+			)
+		}
+
+		if jIn.SighashType != nil {
+			pIn.SighashType = txscriptSigHashType(
+				int(*jIn.SighashType),
+			)
+		}
+		pIn.RedeemScript = nonNilBytes(jIn.RedeemScript)
+		pIn.WitnessScript = nonNilBytes(jIn.WitnessScript)
+		pIn.FinalScriptSig = nonNilBytes(jIn.FinalScriptSig)
+		pIn.FinalScriptWitness = nonNilBytes(jIn.FinalScriptWitness)
+		pIn.PartialSigs = partialSigsFromJSON(jIn.PartialSigs)
+		pIn.Bip32Derivation = bip32DerivationFromJSON(jIn.Bip32Derivation)
+		pIn.TaprootKeySpendSig = nonNilBytes(jIn.TaprootKeySpendSig)
+		pIn.TaprootInternalKey = nonNilBytes(jIn.TaprootInternalKey)
+		pIn.TaprootMerkleRoot = nonNilBytes(jIn.TaprootMerkleRoot)
+		pIn.TaprootScriptSpendSig = taprootScriptSpendSigsFromJSON(
+			jIn.TaprootScriptSpendSigs,
+		)
+		pIn.TaprootLeafScript = taprootLeafScriptsFromJSON(
+			jIn.TaprootLeafScripts,
+		)
+		pIn.TaprootBip32Derivation = taprootBip32DerivationFromJSON(
+			jIn.TaprootBip32Derivation,
+		)
+		pIn.Unknowns = unknownsFromJSON(jIn.Unknowns)
+	}
+
+	for i := 0; i < len(j.Outputs) && i < len(pkt.Outputs); i++ {
+		jOut := j.Outputs[i]
+		pOut := &pkt.Outputs[i]
+
+		pOut.RedeemScript = nonNilBytes(jOut.RedeemScript)
+		pOut.WitnessScript = nonNilBytes(jOut.WitnessScript)
+		pOut.Bip32Derivation = bip32DerivationFromJSON(jOut.Bip32Derivation)
+		pOut.TaprootInternalKey = nonNilBytes(jOut.TaprootInternalKey)
+		pOut.TaprootTapTree = nonNilBytes(jOut.TaprootTapTree)
+		pOut.TaprootBip32Derivation = taprootBip32DerivationFromJSON(
+			jOut.TaprootBip32Derivation,
+		)
+		pOut.Unknowns = unknownsFromJSON(jOut.Unknowns)
+	}
+
+	return pkt, nil
+}
+
+// ---------------------------------------------------------------------------
+// decode / encode
 // ---------------------------------------------------------------------------
 
 func psbtDecode(_ js.Value, args []js.Value) any {
@@ -74,117 +450,31 @@ func psbtDecode(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
+	return marshalJSON(psbtToJSON(pkt))
+}
 
-	inputs := make([]any, len(pkt.Inputs))
-	for i, pIn := range pkt.Inputs {
-		inp := map[string]any{
-			"previousTxid":  pkt.UnsignedTx.TxIn[i].PreviousOutPoint.Hash.String(),
-			"previousVout":  int(pkt.UnsignedTx.TxIn[i].PreviousOutPoint.Index),
-			"sequence":      int64(pkt.UnsignedTx.TxIn[i].Sequence),
-			"sighashType":   int(pIn.SighashType),
-			"redeemScript":  bytesToJS(pIn.RedeemScript),
-			"witnessScript": bytesToJS(pIn.WitnessScript),
-		}
-
-		inp["hasNonWitnessUtxo"] = pIn.NonWitnessUtxo != nil
-		if pIn.NonWitnessUtxo != nil {
-			inp["nonWitnessUtxo"] = serializeTx(pIn.NonWitnessUtxo)
-		}
-
-		if pIn.WitnessUtxo != nil {
-			inp["witnessUtxoValue"] = pIn.WitnessUtxo.Value
-			inp["witnessUtxoScript"] = bytesToJS(pIn.WitnessUtxo.PkScript)
-		}
-
-		// Partial signatures.
-		partialSigs := make([]any, len(pIn.PartialSigs))
-		for j, ps := range pIn.PartialSigs {
-			partialSigs[j] = map[string]any{
-				"pubKey":    bytesToJS(ps.PubKey),
-				"signature": bytesToJS(ps.Signature),
-			}
-		}
-		inp["partialSigs"] = partialSigs
-
-		// Final scripts.
-		inp["finalScriptSig"] = bytesToJS(pIn.FinalScriptSig)
-		inp["finalScriptWitness"] = bytesToJS(pIn.FinalScriptWitness)
-
-		// BIP-32 derivation.
-		inp["bip32Derivation"] = serializeBip32Derivation(
-			pIn.Bip32Derivation,
-		)
-
-		// Taproot fields.
-		inp["taprootKeySpendSig"] = bytesToJS(pIn.TaprootKeySpendSig)
-		inp["taprootInternalKey"] = bytesToJS(pIn.TaprootInternalKey)
-		inp["taprootMerkleRoot"] = bytesToJS(pIn.TaprootMerkleRoot)
-
-		trSigs := make([]any, len(pIn.TaprootScriptSpendSig))
-		for j, ss := range pIn.TaprootScriptSpendSig {
-			trSigs[j] = map[string]any{
-				"xOnlyPubKey": bytesToJS(ss.XOnlyPubKey),
-				"leafHash":    bytesToJS(ss.LeafHash),
-				"signature":   bytesToJS(ss.Signature),
-				"sigHash":     int(ss.SigHash),
-			}
-		}
-		inp["taprootScriptSpendSigs"] = trSigs
-
-		trLeaves := make([]any, len(pIn.TaprootLeafScript))
-		for j, ls := range pIn.TaprootLeafScript {
-			trLeaves[j] = map[string]any{
-				"controlBlock": bytesToJS(ls.ControlBlock),
-				"script":       bytesToJS(ls.Script),
-				"leafVersion":  int(ls.LeafVersion),
-			}
-		}
-		inp["taprootLeafScripts"] = trLeaves
-
-		inp["taprootBip32Derivation"] = serializeTaprootBip32Derivation(
-			pIn.TaprootBip32Derivation,
-		)
-
-		inputs[i] = inp
+// psbtEncode reconstructs a PSBT from a JSON-shaped PsbtDataJSON value and
+// returns the base64-encoded PSBT string.
+func psbtEncode(_ js.Value, args []js.Value) any {
+	if e := checkArgs(args, 1, "data"); e != nil {
+		return e
 	}
-
-	outputs := make([]any, len(pkt.UnsignedTx.TxOut))
-	for i, txOut := range pkt.UnsignedTx.TxOut {
-		pOut := pkt.Outputs[i]
-		out := map[string]any{
-			"value":        txOut.Value,
-			"scriptPubKey": bytesToJS(txOut.PkScript),
-		}
-
-		out["redeemScript"] = bytesToJS(pOut.RedeemScript)
-		out["witnessScript"] = bytesToJS(pOut.WitnessScript)
-		out["bip32Derivation"] = serializeBip32Derivation(
-			pOut.Bip32Derivation,
-		)
-		out["taprootInternalKey"] = bytesToJS(pOut.TaprootInternalKey)
-		out["taprootTapTree"] = bytesToJS(pOut.TaprootTapTree)
-		out["taprootBip32Derivation"] = serializeTaprootBip32Derivation(
-			pOut.TaprootBip32Derivation,
-		)
-
-		outputs[i] = out
+	var j PsbtDataJSON
+	if e := unmarshalArg(args[0], &j); e != nil {
+		return e
 	}
-
-	fee := int64(-1)
-	if f, err := pkt.GetTxFee(); err == nil {
-		fee = int64(f)
+	pkt, err := psbtFromData(j)
+	if err != nil {
+		return errfResult("%s", err)
 	}
-
-	return okResult(map[string]any{
-		"version":     int(pkt.UnsignedTx.Version),
-		"locktime":    int64(pkt.UnsignedTx.LockTime),
-		"inputCount":  len(pkt.Inputs),
-		"outputCount": len(pkt.Outputs),
-		"isComplete":  pkt.IsComplete(),
-		"fee":         fee,
-		"inputs":      inputs,
-		"outputs":     outputs,
-	})
+	var buf bytes.Buffer
+	if err := pkt.Serialize(&buf); err != nil {
+		return errfResult("encode: %s", err)
+	}
+	// Base64-encode the raw PSBT bytes directly (bypasses btcpsbt's
+	// B64Encode, which goes through SanityCheck and would reject empty
+	// PSBTs).
+	return okResult(base64.StdEncoding.EncodeToString(buf.Bytes()))
 }
 
 // ---------------------------------------------------------------------------
@@ -751,4 +1041,53 @@ func psbtSanityCheck(_ js.Value, args []js.Value) any {
 		return errfResult("sanityCheck: %s", err)
 	}
 	return okResult(true)
+}
+
+// ---------------------------------------------------------------------------
+// allUnknowns helper — unify the three levels (global/input/output) into a
+// single flat stream.
+// ---------------------------------------------------------------------------
+
+// psbtAllUnknowns returns [{level: 'global'|'input'|'output', index, key, value}]
+// for every unknown TLV entry at any level. -1 index for global. Convenience
+// helper for editors that want to show a unified view.
+func psbtAllUnknowns(_ js.Value, args []js.Value) any {
+	if e := checkArgs(args, 1, "base64Psbt"); e != nil {
+		return e
+	}
+	pkt, e := parsePsbt(args[0].String())
+	if e != nil {
+		return e
+	}
+
+	entries := []any{}
+	for _, u := range pkt.Unknowns {
+		entries = append(entries, map[string]any{
+			"level": "global",
+			"index": -1,
+			"key":   bytesToJS(u.Key),
+			"value": bytesToJS(u.Value),
+		})
+	}
+	for i, in := range pkt.Inputs {
+		for _, u := range in.Unknowns {
+			entries = append(entries, map[string]any{
+				"level": "input",
+				"index": i,
+				"key":   bytesToJS(u.Key),
+				"value": bytesToJS(u.Value),
+			})
+		}
+	}
+	for i, out := range pkt.Outputs {
+		for _, u := range out.Unknowns {
+			entries = append(entries, map[string]any{
+				"level": "output",
+				"index": i,
+				"key":   bytesToJS(u.Key),
+				"value": bytesToJS(u.Value),
+			})
+		}
+	}
+	return okResult(entries)
 }

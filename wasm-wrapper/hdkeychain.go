@@ -65,7 +65,18 @@ func hdDerive(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("invalid extended key: %s", err)
 	}
-	child, err := key.Derive(uint32(args[1].Int()))
+
+	// Reject negative input — JS coerces it to a huge uint32 (e.g.
+	// uint32(-1) == 0xffffffff which is hardened) and silently derives
+	// a different key.
+	idx := args[1].Float()
+	if idx < 0 || idx >= float64(hdkeychain.HardenedKeyStart) {
+		return errfResult("derive: index must be in [0, %d); got %v "+
+			"(use deriveHardened for hardened indices)",
+			hdkeychain.HardenedKeyStart, idx)
+	}
+
+	child, err := key.Derive(uint32(idx))
 	if err != nil {
 		return errfResult("derive: %s", err)
 	}
@@ -80,9 +91,17 @@ func hdDeriveHardened(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return errfResult("invalid extended key: %s", err)
 	}
-	child, err := key.Derive(
-		hdkeychain.HardenedKeyStart + uint32(args[1].Int()),
-	)
+
+	// The user passes the *unhardened* index (e.g. 0 for m/0'). Reject
+	// indices ≥ HardenedKeyStart (= 2^31) so the hardening offset doesn't
+	// overflow uint32 and silently wrap to a non-hardened index.
+	idx := args[1].Float()
+	if idx < 0 || idx >= float64(hdkeychain.HardenedKeyStart) {
+		return errfResult("deriveHardened: index must be in [0, %d); "+
+			"got %v", hdkeychain.HardenedKeyStart, idx)
+	}
+
+	child, err := key.Derive(hdkeychain.HardenedKeyStart + uint32(idx))
 	if err != nil {
 		return errfResult("deriveHardened: %s", err)
 	}

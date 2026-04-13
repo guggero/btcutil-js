@@ -136,6 +136,75 @@ describe('txscript: taproot', () => {
     const tweakedXOnly = await btcec.schnorrSerializePubKey(toHex(tweakedPub));
     assert.equal(toHex(tweakedXOnly), toHex(outputKey));
   });
+
+  // ---------------------------------------------------------------------------
+  // Regression: security-review.md H-1 — taproot script-root must be
+  // honoured whether passed as a hex string or a Uint8Array. Pre-fix the
+  // Uint8Array form silently fell through to "no script root", which would
+  // cause loss of funds in a script-path-spend wallet.
+  // ---------------------------------------------------------------------------
+  it('computeTaprootOutputKey accepts Uint8Array script root', async () => {
+    const { publicKey } = await btcec.newPrivateKey();
+    const xOnly = await btcec.schnorrSerializePubKey(publicKey);
+    const scriptRootHex = 'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899';
+    const scriptRootBytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) {
+      scriptRootBytes[i] = parseInt(scriptRootHex.slice(i * 2, i * 2 + 2), 16);
+    }
+    const fromHex = await txscript.computeTaprootOutputKey(xOnly, scriptRootHex);
+    const fromBytes = await txscript.computeTaprootOutputKey(xOnly, scriptRootBytes);
+    assert.deepEqual(fromBytes, fromHex);
+    // Sanity: with the script root, the output key MUST differ from the
+    // key-only tweak (this is what regressed pre-fix).
+    const keyOnly = await txscript.computeTaprootKeyNoScript(xOnly);
+    assert.notDeepEqual(fromBytes, keyOnly);
+  });
+
+  it('tweakTaprootPrivKey accepts Uint8Array script root', async () => {
+    const { privateKey } = await btcec.newPrivateKey();
+    const scriptRootHex = 'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899';
+    const scriptRootBytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) {
+      scriptRootBytes[i] = parseInt(scriptRootHex.slice(i * 2, i * 2 + 2), 16);
+    }
+    const fromHex = await txscript.tweakTaprootPrivKey(privateKey, scriptRootHex);
+    const fromBytes = await txscript.tweakTaprootPrivKey(privateKey, scriptRootBytes);
+    assert.deepEqual(fromBytes, fromHex);
+    const keyOnly = await txscript.tweakTaprootPrivKey(privateKey);
+    assert.notDeepEqual(fromBytes, keyOnly);
+  });
+
+  it('rawTxInTaprootSignature accepts Uint8Array merkle root', async () => {
+    const { privateKey, publicKey } = await btcec.newPrivateKey();
+    const xOnly = await btcec.schnorrSerializePubKey(publicKey);
+    // Build a real P2TR pkScript so the sighash engine accepts it.
+    const outKeyKeyOnly = await txscript.computeTaprootKeyNoScript(xOnly);
+    const pkScript = new Uint8Array(34);
+    pkScript[0] = 0x51; pkScript[1] = 0x20;
+    pkScript.set(outKeyKeyOnly, 2);
+    const segwitTxHex =
+      '02000000' + '0001' + '01' +
+      '0000000000000000000000000000000000000000000000000000000000000000' +
+      '00000000' + '00' + 'ffffffff' +
+      '01' + 'e803000000000000' + '00' +
+      '02' + '04' + 'deadbeef' + '04' + 'cafebabe' +
+      '00000000';
+    const merkleHex = '5555555555555555555555555555555555555555555555555555555555555555';
+    const merkleBytes = new Uint8Array(32).fill(0x55);
+    const prevOuts = [{script: pkScript, amount: 0}];
+    const sigFromHex = await txscript.rawTxInTaprootSignature(
+      segwitTxHex, 0, merkleHex, 0, privateKey, prevOuts,
+    );
+    const sigFromBytes = await txscript.rawTxInTaprootSignature(
+      segwitTxHex, 0, merkleBytes, 0, privateKey, prevOuts,
+    );
+    assert.deepEqual(sigFromBytes, sigFromHex);
+    // And both must differ from the no-merkle-root sig (key path).
+    const sigKeyPath = await txscript.rawTxInTaprootSignature(
+      segwitTxHex, 0, '', 0, privateKey, prevOuts,
+    );
+    assert.notDeepEqual(sigFromBytes, sigKeyPath);
+  });
   it('assembleTaprootScriptTree', async () => {
     const { publicKey } = await btcec.newPrivateKey();
     const xOnly = await btcec.schnorrSerializePubKey(toHex(publicKey));

@@ -1,5 +1,6 @@
 import { init, g, unwrap } from './init';
-import type { Bytes, PsbtDecodeResult } from './types';
+import { psbtFromJson, psbtToJson, hexToBytes } from './codec';
+import type { Bytes, PsbtData, PsbtDecodeResult, PsbtUnknownEntry } from './types';
 
 export interface PsbtInput {
   txid: string;
@@ -41,11 +42,36 @@ export const psbt = {
 
   /** Decode a base64-encoded PSBT and return structured info including all
    *  per-input and per-output fields (partial sigs, BIP-32 derivation,
-   *  taproot fields, etc.).
+   *  taproot fields, etc.) plus the unsigned transaction as `unsignedTx`.
    *  Calls Go: psbt.NewFromRawBytes() from btcutil/psbt. */
   async decode(base64Psbt: string): Promise<PsbtDecodeResult> {
     await init();
-    return unwrap<PsbtDecodeResult>(g().psbt.decode(base64Psbt));
+    const json = unwrap<string>(g().psbt.decode(base64Psbt));
+    return psbtFromJson(JSON.parse(json));
+  },
+
+  /** Encode a PSBT (the encode-input shape `PsbtData`) back to a
+   *  base64-encoded PSBT string. Round-trips with `decode()`. Empty PSBTs
+   *  (zero inputs / zero outputs) are accepted — useful when building
+   *  one from scratch.
+   *  Calls Go: btcpsbt.Packet.Serialize() via direct construction. */
+  async encode(data: PsbtData): Promise<string> {
+    await init();
+    const json = JSON.stringify(psbtToJson(data));
+    return unwrap<string>(g().psbt.encode(json));
+  },
+
+  /** Return every unknown TLV entry from a PSBT, flattened across all
+   *  three levels (global / input / output) into a single stream. */
+  async allUnknowns(base64Psbt: string): Promise<PsbtUnknownEntry[]> {
+    await init();
+    const raw = unwrap<any[]>(g().psbt.allUnknowns(base64Psbt));
+    return raw.map((e) => ({
+      level: e.level,
+      index: e.index,
+      key: e.key instanceof Uint8Array ? e.key : hexToBytes(e.key),
+      value: e.value instanceof Uint8Array ? e.value : hexToBytes(e.value),
+    }));
   },
 
   /** Check if all inputs are finalized and ready to extract.

@@ -1,4 +1,11 @@
-import { wasmExecJs } from './wasm_exec_inline';
+import { Go } from './wasm_exec';
+import {
+  txFromJson,
+  txToJson,
+  psbtFromJson,
+  psbtToJson,
+  hexToBytes,
+} from './codec';
 
 // Type-only imports — erased at runtime, no circular dependency issues.
 import type { base58 as _base58 } from './base58';
@@ -70,23 +77,23 @@ export interface BtcutilSync {
 
 let initPromise: Promise<void> | null = null;
 let syncApi: BtcutilSync | null = null;
-
-function ensureGoRuntime(): void {
-  if ((globalThis as any).Go) return;
-  new Function(wasmExecJs)();
-}
+// Bridge namespace, captured from the Go-side readiness callback. Kept in
+// module scope (not on globalThis) so the library doesn't pollute the page.
+let btcutilNs: any = null;
 
 async function loadWasm(
   wasmSource?: ArrayBuffer | Response | string,
 ): Promise<void> {
-  ensureGoRuntime();
+  const go = new Go();
 
-  const go = new (globalThis as any).Go();
-
-  const readyPromise = new Promise<void>((resolve) => {
-    (globalThis as any).onBtcutilReady = () => {
-      delete (globalThis as any).onBtcutilReady;
-      resolve();
+  // The Go binary calls `globalThis.__btcutilReady(namespace)` as its
+  // very last action before blocking on `select {}`. We register it here,
+  // immediately delete it inside the handler so it doesn't persist after
+  // initialization, and capture the namespace into module scope.
+  const readyPromise = new Promise<any>((resolve) => {
+    (globalThis as any).__btcutilReady = (ns: any) => {
+      delete (globalThis as any).__btcutilReady;
+      resolve(ns);
     };
   });
 
@@ -125,7 +132,7 @@ async function loadWasm(
   }
 
   go.run(result.instance);
-  await readyPromise;
+  btcutilNs = await readyPromise;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +152,31 @@ function wrapNamespace(ns: any): any {
 
 function buildSyncApi(): BtcutilSync {
   const raw = g();
+
+  // tx and psbt go through the JSON codec on both sides of the bridge, so
+  // the auto-generated sync wrappers in wrapNamespace need overrides for
+  // their decode/encode pair.
+  const txNs = wrapNamespace(raw.tx);
+  txNs.decode = (rawTx: any) =>
+    txFromJson(JSON.parse(unwrap<string>(raw.tx.decode(rawTx))));
+  txNs.encode = (decoded: any) =>
+    unwrap<Uint8Array>(raw.tx.encode(JSON.stringify(txToJson(decoded))));
+
+  const psbtNs = wrapNamespace(raw.psbt);
+  psbtNs.decode = (b64: any) =>
+    psbtFromJson(JSON.parse(unwrap<string>(raw.psbt.decode(b64))));
+  psbtNs.encode = (decoded: any) =>
+    unwrap<string>(raw.psbt.encode(JSON.stringify(psbtToJson(decoded))));
+  psbtNs.allUnknowns = (b64: any) => {
+    const arr = unwrap<any[]>(raw.psbt.allUnknowns(b64));
+    return arr.map((e) => ({
+      level: e.level,
+      index: e.index,
+      key: e.key instanceof Uint8Array ? e.key : hexToBytes(e.key),
+      value: e.value instanceof Uint8Array ? e.value : hexToBytes(e.value),
+    }));
+  };
+
   return {
     base58: wrapNamespace(raw.base58),
     bech32: wrapNamespace(raw.bech32),
@@ -155,8 +187,8 @@ function buildSyncApi(): BtcutilSync {
     hdkeychain: wrapNamespace(raw.hdkeychain),
     bip322: wrapNamespace(raw.bip322),
     txsort: wrapNamespace(raw.txsort),
-    tx: wrapNamespace(raw.tx),
-    psbt: wrapNamespace(raw.psbt),
+    tx: txNs,
+    psbt: psbtNs,
     gcs: wrapNamespace(raw.gcs),
     bloom: wrapNamespace(raw.bloom),
     txscript: wrapNamespace(raw.txscript),
@@ -182,6 +214,9 @@ function buildSyncApi(): BtcutilSync {
  * btcutil.base58.encode('deadbeef'); // sync — no await needed
  * ```
  *
+ * The loader is CSP-friendly: only `'wasm-unsafe-eval'` is required (for
+ * `WebAssembly.instantiate*`). No `'unsafe-eval'` is needed.
+ *
  * @param wasmSource - Optional: a URL string, ArrayBuffer, or fetch Response.
  *   If omitted, btcutil.wasm is loaded from alongside this file.
  * @returns The synchronous API object with all namespaces.
@@ -202,9 +237,9 @@ export async function init(
   return syncApi;
 }
 
-/** Access the globalThis.btcutil bridge object. */
+/** Access the bridge namespace (captured from the Go readiness callback). */
 export function g(): any {
-  return (globalThis as any).btcutil;
+  return btcutilNs;
 }
 
 /** Unwrap a Go result ({result: T} or {error: string}) into T or throw. */

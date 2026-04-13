@@ -477,14 +477,9 @@ func txscriptComputeTaprootOutputKey(_ js.Value, args []js.Value) any {
 		}
 	}
 
-	var scriptRoot []byte
-	if len(args) > 1 && args[1].Type() == js.TypeString &&
-		args[1].String() != "" {
-
-		scriptRoot, e = bytesFromArg(args[1])
-		if e != nil {
-			return e
-		}
+	scriptRoot, e := optBytesFromArg(args, 1)
+	if e != nil {
+		return e
 	}
 
 	outKey := txscript.ComputeTaprootOutputKey(key, scriptRoot)
@@ -520,14 +515,9 @@ func txscriptTweakTaprootPrivKey(_ js.Value, args []js.Value) any {
 	}
 	privKey, _ := btcec.PrivKeyFromBytes(privBytes)
 
-	var scriptRoot []byte
-	if len(args) > 1 && args[1].Type() == js.TypeString &&
-		args[1].String() != "" {
-
-		scriptRoot, e = bytesFromArg(args[1])
-		if e != nil {
-			return e
-		}
+	scriptRoot, e := optBytesFromArg(args, 1)
+	if e != nil {
+		return e
 	}
 
 	tweaked := txscript.TweakTaprootPrivKey(*privKey, scriptRoot)
@@ -629,7 +619,7 @@ func txscriptCalcSignatureHash(_ js.Value, args []js.Value) any {
 		return e
 	}
 	hashType := txscript.SigHashType(args[1].Int())
-	msgTx, e := deserializeTx(args[2].String())
+	msgTx, e := deserializeTxArg(args[2])
 	if e != nil {
 		return e
 	}
@@ -652,7 +642,7 @@ func txscriptCalcWitnessSigHash(_ js.Value, args []js.Value) any {
 		return e
 	}
 	hashType := txscript.SigHashType(args[1].Int())
-	msgTx, e := deserializeTx(args[2].String())
+	msgTx, e := deserializeTxArg(args[2])
 	if e != nil {
 		return e
 	}
@@ -677,7 +667,7 @@ func txscriptCalcTaprootSignatureHash(_ js.Value, args []js.Value) any {
 		return e
 	}
 	hashType := txscript.SigHashType(args[0].Int())
-	msgTx, e := deserializeTx(args[1].String())
+	msgTx, e := deserializeTxArg(args[1])
 	if e != nil {
 		return e
 	}
@@ -707,7 +697,7 @@ func txscriptRawTxInSignature(_ js.Value, args []js.Value) any {
 		"hexRawTx, idx, hexSubScript, hashType, hexPrivKey"); e != nil {
 		return e
 	}
-	msgTx, e := deserializeTx(args[0].String())
+	msgTx, e := deserializeTxArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -737,7 +727,7 @@ func txscriptRawTxInWitnessSignature(_ js.Value, args []js.Value) any {
 		"hexRawTx, idx, amount, hexSubScript, hashType, hexPrivKey"); e != nil {
 		return e
 	}
-	msgTx, e := deserializeTx(args[0].String())
+	msgTx, e := deserializeTxArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -771,7 +761,7 @@ func txscriptWitnessSignature(_ js.Value, args []js.Value) any {
 		"hexRawTx, idx, amount, hexSubScript, hashType, hexPrivKey, compress"); e != nil {
 		return e
 	}
-	msgTx, e := deserializeTx(args[0].String())
+	msgTx, e := deserializeTxArg(args[0])
 	if e != nil {
 		return e
 	}
@@ -810,18 +800,15 @@ func txscriptRawTxInTaprootSignature(_ js.Value, args []js.Value) any {
 		"hexRawTx, idx, hexMerkleRoot, hashType, hexPrivKey, prevOuts[]"); e != nil {
 		return e
 	}
-	msgTx, e := deserializeTx(args[0].String())
+	msgTx, e := deserializeTxArg(args[0])
 	if e != nil {
 		return e
 	}
 	idx := args[1].Int()
 
-	var merkleRoot []byte
-	if args[2].Type() == js.TypeString && args[2].String() != "" {
-		merkleRoot, e = bytesFromArg(args[2])
-		if e != nil {
-			return e
-		}
+	merkleRoot, e := optBytesFromArg(args, 2)
+	if e != nil {
+		return e
 	}
 
 	hashType := txscript.SigHashType(args[3].Int())

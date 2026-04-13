@@ -71,6 +71,35 @@ func bytesFromArg(arg js.Value) ([]byte, map[string]any) {
 	return hexDecode(arg.String())
 }
 
+// optBytesFromArg returns nil for absent / null / undefined / empty-string
+// arguments and decoded bytes otherwise. Use this for *optional* `Bytes`
+// parameters where the previous TypeString-only check silently dropped any
+// `Uint8Array` value.
+func optBytesFromArg(args []js.Value, i int) ([]byte, map[string]any) {
+	if i >= len(args) {
+		return nil, nil
+	}
+
+	arg := args[i]
+	switch arg.Type() {
+	case js.TypeUndefined, js.TypeNull:
+		return nil, nil
+
+	case js.TypeString:
+		if arg.String() == "" {
+			return nil, nil
+		}
+	}
+	b, err := bytesFromArg(arg)
+	if err != nil {
+		return nil, err
+	}
+	if len(b) == 0 {
+		return nil, nil
+	}
+	return b, nil
+}
+
 func hexDecode(s string) ([]byte, map[string]any) {
 	b, err := hex.DecodeString(s)
 	if err != nil {
@@ -122,6 +151,23 @@ func deserializeTx(hexStr string) (*wire.MsgTx, map[string]any) {
 	return msgTx, nil
 }
 
+// deserializeTxArg parses a transaction from a JS argument that may be either
+// a hex string or a Uint8Array. Use this in place of
+// `deserializeTx(arg.String())` for any function whose TS signature is
+// `rawTx: Bytes` — passing a Uint8Array through `.String()` returns Go's
+// default `<TYPE>` debug repr and corrupts hex parsing.
+func deserializeTxArg(arg js.Value) (*wire.MsgTx, map[string]any) {
+	raw, e := bytesFromArg(arg)
+	if e != nil {
+		return nil, e
+	}
+	msgTx := wire.NewMsgTx(wire.TxVersion)
+	if err := msgTx.Deserialize(bytes.NewReader(raw)); err != nil {
+		return nil, errfResult("failed to parse transaction: %s", err)
+	}
+	return msgTx, nil
+}
+
 func serializeTx(msgTx *wire.MsgTx) js.Value {
 	var buf bytes.Buffer
 	_ = msgTx.Serialize(&buf)
@@ -144,4 +190,8 @@ func newHashFromString(s string) (*chainhash.Hash, error) {
 
 func txscriptSigHashType(v int) txscript.SigHashType {
 	return txscript.SigHashType(v)
+}
+
+func txscriptLeafVersion(v int) txscript.TapscriptLeafVersion {
+	return txscript.TapscriptLeafVersion(byte(v))
 }
