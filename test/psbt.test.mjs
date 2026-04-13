@@ -485,3 +485,44 @@ describe('psbt: allUnknowns', () => {
     assert.deepEqual(all, []);
   });
 });
+
+// ---------------------------------------------------------------------------
+// extended-key helpers (PSBT_GLOBAL_XPUB encoding)
+// ---------------------------------------------------------------------------
+
+describe('psbt: extended-key helpers', () => {
+  // BIP-32 test-vector master xpub.
+  const xpubStr = 'xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8';
+
+  it('encodeExtendedKey → 78 bytes; decodeExtendedKey round-trips', async () => {
+    const bytes = await psbt.encodeExtendedKey(xpubStr);
+    assert.ok(bytes instanceof Uint8Array);
+    assert.equal(bytes.length, 78);
+    const back = await psbt.decodeExtendedKey(bytes);
+    assert.equal(back, xpubStr);
+  });
+
+  it('XPubJSON.extendedKey round-trips as base58 xpub string', async () => {
+    // Build a PSBT, attach an XPub, round-trip, and verify the xpub
+    // comes back as a base58 string (not hex bytes). BIP-174 requires
+    // path-length == xpub depth, so we use the depth-0 master with an
+    // empty path.
+    const txid = '0000000000000000000000000000000000000000000000000000000000000001';
+    const pkt = await psbt.create(
+      [{txid, vout: 0}],
+      [{value: 1000, script: '6a'}],
+    );
+    const decoded = await psbt.decode(pkt);
+    decoded.xpubs = [{
+      extendedKey: xpubStr,
+      masterKeyFingerprint: 'deadbeef',
+      path: [],
+    }];
+    const reencoded = await psbt.encode(decoded);
+    const redecoded = await psbt.decode(reencoded);
+    assert.equal(redecoded.xpubs.length, 1);
+    assert.equal(redecoded.xpubs[0].extendedKey, xpubStr);
+    assert.equal(redecoded.xpubs[0].masterKeyFingerprint, 'deadbeef');
+    assert.deepEqual(redecoded.xpubs[0].path, []);
+  });
+});

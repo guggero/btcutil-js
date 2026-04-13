@@ -243,8 +243,12 @@ type UnknownJSON struct {
 	Value HexBytes `json:"value,omitempty"`
 }
 
+// XPubJSON mirrors btcpsbt.XPub. The ExtendedKey is exchanged as a base58
+// xpub/xprv string (e.g. "xpub6CUGRUo..."), not raw bytes — that's the
+// format users actually paste / read. Conversion to/from the 78-byte
+// PSBT-wire representation happens in xpubsToJSON / xpubsFromJSON.
 type XPubJSON struct {
-	ExtendedKey          HexBytes  `json:"extendedKey,omitempty"`
+	ExtendedKey          string    `json:"extendedKey,omitempty"`
 	MasterKeyFingerprint HexUint32 `json:"masterKeyFingerprint"`
 	Path                 []uint32  `json:"path,omitempty"`
 	PathStr              string    `json:"pathStr,omitempty"`

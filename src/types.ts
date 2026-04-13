@@ -146,7 +146,10 @@ export interface PsbtUnknownInfo {
 }
 
 export interface PsbtXpubInfo {
-  extendedKey: Bytes;
+  /** Base58-encoded xpub/xprv string (e.g. `"xpub6CUGRUo..."`).
+   *  The PSBT wire format stores 78 raw bytes; the codec converts both
+   *  ways so consumers can read and write the human-friendly form. */
+  extendedKey: string;
   /** Master key fingerprint as 8-char lowercase hex. */
   masterKeyFingerprint: string;
   path?: number[];

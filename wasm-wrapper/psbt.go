@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"syscall/js"
 
+	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	btcpsbt "github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/wire"
 )
@@ -261,8 +262,16 @@ func xpubsToJSON(xpubs []btcpsbt.XPub) []XPubJSON {
 	}
 	out := make([]XPubJSON, len(xpubs))
 	for i, xp := range xpubs {
+		// Convert the 78-byte PSBT-wire form to a base58 xpub/xprv
+		// string. If the bytes are malformed we still emit the entry
+		// (with an empty string) so the round-trip surfaces the issue
+		// downstream rather than panicking here.
+		var ext string
+		if k, err := btcpsbt.DecodeExtendedKey(xp.ExtendedKey); err == nil {
+			ext = k.String()
+		}
 		out[i] = XPubJSON{
-			ExtendedKey:          HexBytes(xp.ExtendedKey),
+			ExtendedKey:          ext,
 			MasterKeyFingerprint: HexUint32(xp.MasterKeyFingerprint),
 			Path:                 xp.Bip32Path,
 			PathStr:              formatBip32Path(xp.Bip32Path),
@@ -278,8 +287,16 @@ func xpubsFromJSON(xpubs []XPubJSON) []btcpsbt.XPub {
 	out := make([]btcpsbt.XPub, len(xpubs))
 	for i := range xpubs {
 		xp := &xpubs[i]
+		var keyBytes []byte
+		if xp.ExtendedKey != "" {
+			if k, err := hdkeychain.NewKeyFromString(
+				xp.ExtendedKey,
+			); err == nil {
+				keyBytes = btcpsbt.EncodeExtendedKey(k)
+			}
+		}
 		out[i] = btcpsbt.XPub{
-			ExtendedKey:          []byte(xp.ExtendedKey),
+			ExtendedKey:          keyBytes,
 			MasterKeyFingerprint: uint32(xp.MasterKeyFingerprint),
 			Bip32Path:            xp.effectivePath(),
 		}
@@ -1047,6 +1064,37 @@ func psbtSanityCheck(_ js.Value, args []js.Value) any {
 // allUnknowns helper — unify the three levels (global/input/output) into a
 // single flat stream.
 // ---------------------------------------------------------------------------
+
+// psbtEncodeExtendedKey wraps btcpsbt.EncodeExtendedKey: take a base58
+// xpub/xprv string and return the 78-byte PSBT-format byte slice (the
+// checksum-less form stored in PSBT_GLOBAL_XPUB).
+func psbtEncodeExtendedKey(_ js.Value, args []js.Value) any {
+	if e := checkArgs(args, 1, "extendedKey"); e != nil {
+		return e
+	}
+	xkey, err := hdkeychain.NewKeyFromString(args[0].String())
+	if err != nil {
+		return errfResult("invalid extended key: %s", err)
+	}
+	return okResult(bytesToJS(btcpsbt.EncodeExtendedKey(xkey)))
+}
+
+// psbtDecodeExtendedKey wraps btcpsbt.DecodeExtendedKey: take the 78-byte
+// PSBT-format byte slice and return the base58 xpub/xprv string.
+func psbtDecodeExtendedKey(_ js.Value, args []js.Value) any {
+	if e := checkArgs(args, 1, "extendedKey"); e != nil {
+		return e
+	}
+	raw, e := bytesFromArg(args[0])
+	if e != nil {
+		return e
+	}
+	xkey, err := btcpsbt.DecodeExtendedKey(raw)
+	if err != nil {
+		return errfResult("decode extended key: %s", err)
+	}
+	return okResult(xkey.String())
+}
 
 // psbtAllUnknowns returns [{level: 'global'|'input'|'output', index, key, value}]
 // for every unknown TLV entry at any level. -1 index for global. Convenience

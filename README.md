@@ -145,8 +145,10 @@ The corresponding Go library this project wraps with WASM is documented here:
 
 All functions are **async** (they ensure the WASM module is loaded on first
 call) — see [Synchronous API](#synchronous-api) above for a sync alternative.
+
 Byte parameters accept either **hex strings** or **`Uint8Array`**, and byte
 returns are always **`Uint8Array`** (type alias: `Bytes = string | Uint8Array`).
+
 Network parameters accept `"mainnet"` (default), `"testnet"` / `"testnet3"`,
 `"testnet4"`, `"signet"`, `"regtest"`, or `"simnet"`.
 
@@ -315,7 +317,7 @@ const rawTx = await psbt.extract(finalized);
 
 | Method | Go function | Description |
 |--------|-------------|-------------|
-| `decode(base64Psbt)` | `psbt.NewFromRawBytes()` | Decode a PSBT into a `PsbtDecodeResult`: `{ unsignedTx, xpubs, unknowns, inputs[], outputs[], fee, isComplete }`. The embedded `unsignedTx` is itself a `TxDecodeResult`. Per-input/output PSBT fields (partial sigs, BIP-32 derivation, taproot, witness UTXO, …) are populated when present. |
+| `decode(base64Psbt)` | `psbt.NewFromRawBytes()` | Decode a PSBT into a `PsbtDecodeResult`: `{ unsignedTx, xpubs, unknowns, inputs[], outputs[], fee, isComplete }`. The embedded `unsignedTx` is itself a `TxDecodeResult`. Per-input/output PSBT fields (partial sigs, BIP-32 derivation, taproot, witness UTXO, …) are populated when present. Master fingerprints come back as 8-char lowercase hex strings, BIP-32 paths come back as both `path: number[]` and `pathStr: "m/84'/0'/0'/0/0"`, and global xpub `extendedKey` fields come back as base58 xpub/xprv strings. |
 | `encode(data)` | `Packet.Serialize()` | Re-encode a `PsbtData` (or full `PsbtDecodeResult`) back to base64. Round-trips with `decode()`. Accepts empty PSBTs (zero inputs / zero outputs). |
 | `allUnknowns(base64Psbt)` | walks `Packet.Unknowns` | Flatten unknown TLV entries from all three levels into one stream. Returns `[{ level: 'global'\|'input'\|'output', index, key, value }]` (`index` is `-1` for global). |
 | `isComplete(base64Psbt)` | `Packet.IsComplete()` | Check if all inputs are finalized. |
@@ -372,6 +374,13 @@ const rawTx = await psbt.extract(finalized);
 | Method | Go function | Description |
 |--------|-------------|-------------|
 | `inPlaceSort(psbt)` | `psbt.InPlaceSort()` | Sort inputs/outputs per BIP-69. |
+
+**Helpers:**
+
+| Method | Go function | Description |
+|--------|-------------|-------------|
+| `encodeExtendedKey(xpubStr)` | `psbt.EncodeExtendedKey()` | Convert a base58 xpub/xprv string to the 78-byte PSBT-wire form (the checksum-less base58 decoding) used in `PSBT_GLOBAL_XPUB` keys. |
+| `decodeExtendedKey(bytes)` | `psbt.DecodeExtendedKey()` | Inverse of `encodeExtendedKey` — convert the 78-byte PSBT-wire form back to a base58 xpub/xprv string. |
 
 ---
 

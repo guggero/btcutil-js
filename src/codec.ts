@@ -401,7 +401,8 @@ function unknownToJson(u: PsbtUnknownInfo): any {
 
 function xpubFromJson(j: any): PsbtXpubInfo {
   return {
-    extendedKey: fromHexOrEmpty(j.extendedKey),
+    // Wire format is now a base58 xpub string, not hex bytes.
+    extendedKey: typeof j.extendedKey === 'string' ? j.extendedKey : '',
     masterKeyFingerprint: j.masterKeyFingerprint ?? '00000000',
     path: j.path ?? [],
     pathStr: j.pathStr ?? undefined,
@@ -410,7 +411,7 @@ function xpubFromJson(j: any): PsbtXpubInfo {
 
 function xpubToJson(x: PsbtXpubInfo): any {
   const out: any = {
-    extendedKey: toHexAny(x.extendedKey) ?? '',
+    extendedKey: x.extendedKey ?? '',
     masterKeyFingerprint: x.masterKeyFingerprint,
   };
   if (x.path && x.path.length > 0) out.path = x.path;

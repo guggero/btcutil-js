@@ -61,6 +61,21 @@ export const psbt = {
     return unwrap<string>(g().psbt.encode(json));
   },
 
+  /** Encode an xpub/xprv string to the 78-byte PSBT-format byte slice
+   *  (i.e. the checksum-less base58 decoding) used in the
+   *  PSBT_GLOBAL_XPUB key. Wraps `psbt.EncodeExtendedKey`. */
+  async encodeExtendedKey(extendedKey: string): Promise<Uint8Array> {
+    await init();
+    return unwrap<Uint8Array>(g().psbt.encodeExtendedKey(extendedKey));
+  },
+
+  /** Decode the 78-byte PSBT-format byte slice back to the base58
+   *  xpub/xprv string. Wraps `psbt.DecodeExtendedKey`. */
+  async decodeExtendedKey(extendedKey: Bytes): Promise<string> {
+    await init();
+    return unwrap<string>(g().psbt.decodeExtendedKey(extendedKey));
+  },
+
   /** Return every unknown TLV entry from a PSBT, flattened across all
    *  three levels (global / input / output) into a single stream. */
   async allUnknowns(base64Psbt: string): Promise<PsbtUnknownEntry[]> {

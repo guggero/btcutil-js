@@ -107,6 +107,8 @@ func main() {
 			"inputsReadyToSign":  js.FuncOf(psbtInputsReadyToSign),
 			"sanityCheck":        js.FuncOf(psbtSanityCheck),
 			"allUnknowns":        js.FuncOf(psbtAllUnknowns),
+			"encodeExtendedKey":  js.FuncOf(psbtEncodeExtendedKey),
+			"decodeExtendedKey":  js.FuncOf(psbtDecodeExtendedKey),
 		},
 		"gcs": map[string]any{
 			"buildFilter": js.FuncOf(gcsBuildFilter),
