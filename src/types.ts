@@ -47,8 +47,15 @@ export interface ExtendedKeyInfo {
   publicKey: Uint8Array;
 }
 
+export interface TimeConstraints {
+    constrained: boolean;
+    validAtTime: number;
+    validAtAge: number;
+}
+
 export interface VerifyResult {
   valid: boolean;
+  timeConstraints?: TimeConstraints;
   error?: string;
 }
 

@@ -31,12 +31,22 @@ func bip322VerifyMessage(_ js.Value, args []js.Value) any {
 		return errfResult("decode address: %s", err)
 	}
 
-	valid, err := bip322.VerifyMessage(message, addr, sig)
-	result := map[string]any{"valid": valid}
+	valid, constraints, err := bip322.VerifyMessage(message, addr, sig)
 	if err != nil {
-		result["error"] = err.Error()
+		return errfResult("verify message: %s", err)
 	}
-	return okResult(result)
+
+	result := VerifyMessageResultJSON{
+		Valid: valid,
+	}
+	if constraints.Constrained {
+		result.TimeConstraints = &TimeConstraintsJSON{
+			Constrained: constraints.Constrained,
+			ValidAtTime: constraints.ValidAtTime,
+			ValidAtAge:  constraints.ValidAtAge,
+		}
+	}
+	return marshalJSON(result)
 }
 
 // bip322BuildToSignPacketSimple wraps bip322.BuildToSignPacketSimple.
@@ -64,7 +74,8 @@ func bip322BuildToSignPacketSimple(_ js.Value, args []js.Value) any {
 }
 
 // bip322BuildToSignPacketFull wraps bip322.BuildToSignPacketFull.
-// Args: message (string), pkScript (Bytes), txVersion (int), lockTime (int), sequence (int)
+// Args: message (string), pkScript (Bytes), txVersion (int), lockTime (int),
+// sequence (int)
 // Returns: base64 PSBT string
 func bip322BuildToSignPacketFull(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 5,

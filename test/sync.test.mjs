@@ -95,11 +95,14 @@ describe('sync API', () => {
   });
 
   it('bip322 verifyMessage', () => {
-    const result = lib.bip322.verifyMessage(
-      'test', 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4', 'AA==',
+    assert.throws(
+      () => {
+        lib.bip322.verifyMessage(
+          'test', 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4', 'AA==',
+        );
+      },
+      'should have exactly two items in witness'
     );
-    assert.equal(result.valid, false);
-    assert.equal(typeof result.error, 'string');
   });
 
   it('tx decode / hash', () => {
@@ -633,7 +636,7 @@ describe('rawTx Bytes parameter accepts Uint8Array', () => {
     // Sigs are deterministic per BIP-340 — same inputs ⇒ same output.
     assert.deepEqual(
       lib.txscript.rawTxInTaprootSignature(hexToBytes(segwitTxHex), 0, '', 0, privKeyBytes, prevOuts),
-      lib.txscript.rawTxInTaprootSignature(segwitTxHex,             0, '', 0, privKeyHex,   prevOuts),
+      lib.txscript.rawTxInTaprootSignature(segwitTxHex, 0, '', 0, privKeyHex, prevOuts),
     );
   });
 });

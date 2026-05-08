@@ -355,3 +355,29 @@ type PsbtJSON struct {
 	IsComplete bool             `json:"isComplete"`
 	Fee        int64            `json:"fee"`
 }
+
+// ---------------------------------------------------------------------------
+// GIP322 sub-types
+// ---------------------------------------------------------------------------
+
+// TimeConstraintsJSON mirrors the fields of bip322.TimeConstraints.
+type TimeConstraintsJSON struct {
+	// Constrained indicates whether the provided witness stack has time or
+	// age based restrictions (e.g., uses LockTime or Sequence check
+	// opcodes).
+	Constrained bool `json:"constrained"`
+
+	// ValidAtTime indicates the LockTime value that must be satisfied for
+	// the witness stack to be valid.
+	ValidAtTime uint32 `json:"validAtTime"`
+
+	// ValidAtAge indicates the Sequence value that must be satisfied for
+	// the witness stack to be valid.
+	ValidAtAge uint32 `json:"validAtAge"`
+}
+
+// VerifyMessageResultJSON mirrors the return values of bip322.VerifyMessage.
+type VerifyMessageResultJSON struct {
+	Valid           bool                 `json:"valid"`
+	TimeConstraints *TimeConstraintsJSON `json:"timeConstraints,omitempty"`
+}

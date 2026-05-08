@@ -13,7 +13,7 @@ require (
 
 require (
 	github.com/aead/siphash v1.0.1 // indirect
-	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
+	github.com/btcsuite/btclog v1.0.0 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.0.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/kkdai/bstream v0.0.0-20161212061736-f391b8402d23 // indirect
@@ -21,4 +21,8 @@ require (
 	golang.org/x/sys v0.38.0 // indirect
 )
 
-replace github.com/btcsuite/btcd/btcutil/bip322 => github.com/guggero/btcd/btcutil/bip322 v0.0.0-20260409195413-6b93e8b9d773
+// The BIP-322 package is not yet merged. The PR also updates the psbt package.
+replace (
+	github.com/btcsuite/btcd/btcutil/bip322 => github.com/guggero/btcd/btcutil/bip322 v0.0.0-20260429110905-6e4a7dee1f0a
+	github.com/btcsuite/btcd/btcutil/psbt => github.com/guggero/btcd/btcutil/psbt v0.0.0-20260429110905-6e4a7dee1f0a
+)

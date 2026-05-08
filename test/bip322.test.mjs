@@ -30,19 +30,32 @@ function runSuite(name, vectors) {
             `expected valid=true, got error: ${result.error}`,
           );
 
-          const negativeResult = await bip322.verifyMessage(
-            vec.message + 'x',
-            vec.address,
-            sig,
-            'mainnet',
-          );
-          assert.match(
-            negativeResult.error, /invalid signature/,
-            `unexpected error: ${result.error}`,
-          );
-          assert.equal(
-            negativeResult.valid, false, 'expected valid=false'
-          );
+          // Verify the optional time constraints.
+          if (vec.lock_time > 0 || vec.sequence > 0) {
+            assert.deepEqual(
+              result.timeConstraints,
+              {
+                constrained: true,
+                validAtTime: vec.lock_time,
+                validAtAge: vec.sequence,
+              }
+            );
+          } else {
+            assert.equal(
+              result.timeConstraints,
+              undefined,
+              'expected timeConstraints=undefined',
+            );
+          }
+
+          await assert.rejects(async () => {
+            await bip322.verifyMessage(
+              vec.message + 'x',
+              vec.address,
+              sig,
+              'mainnet',
+            );
+          }, 'invalid signature');
         });
       }
     }
@@ -53,17 +66,14 @@ function runErrorSuite(name, vectors) {
   describe(name, () => {
     for (const vec of vectors) {
       it(vec.description, async () => {
-        const result = await bip322.verifyMessage(
-          vec.message,
-          vec.address,
-          vec.signature,
-          'mainnet',
-        );
-        assert.equal(result.valid, false, 'expected valid=false');
-        assert.ok(
-          result.error.includes(vec.error_substr),
-          `expected error containing "${vec.error_substr}", got: ${result.error}`,
-        );
+        await assert.rejects(async () => {
+          await bip322.verifyMessage(
+            vec.message,
+            vec.address,
+            vec.signature,
+            'mainnet',
+          );
+        }, vec.error_substr);
       });
     }
   });
