@@ -5,7 +5,7 @@ package main
 import (
 	"syscall/js"
 
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/chainhash/v2"
 )
 
 func chainhashHashB(_ js.Value, args []js.Value) any {

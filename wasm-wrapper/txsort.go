@@ -5,7 +5,7 @@ package main
 import (
 	"syscall/js"
 
-	"github.com/btcsuite/btcd/btcutil/txsort"
+	"github.com/btcsuite/btcd/btcutil/v2/txsort"
 )
 
 func txsortSort(_ js.Value, args []js.Value) any {

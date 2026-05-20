@@ -7,7 +7,7 @@ import (
 	"strings"
 	"syscall/js"
 
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
+	"github.com/btcsuite/btcd/btcutil/v2/hdkeychain"
 )
 
 func hdNewMaster(_ js.Value, args []js.Value) any {

@@ -6,9 +6,9 @@ import (
 	"encoding/hex"
 	"syscall/js"
 
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/btcutil/bip322"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/address/v2"
+	"github.com/btcsuite/btcd/bip322"
+	"github.com/btcsuite/btcd/wire/v2"
 )
 
 func bip322VerifyMessage(_ js.Value, args []js.Value) any {
@@ -26,7 +26,7 @@ func bip322VerifyMessage(_ js.Value, args []js.Value) any {
 		return errfResult("unknown network: %s", network)
 	}
 
-	addr, err := btcutil.DecodeAddress(addrStr, params)
+	addr, err := address.DecodeAddress(addrStr, params)
 	if err != nil {
 		return errfResult("decode address: %s", err)
 	}

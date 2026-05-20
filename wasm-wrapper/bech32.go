@@ -5,7 +5,7 @@ package main
 import (
 	"syscall/js"
 
-	bech32pkg "github.com/btcsuite/btcd/btcutil/bech32"
+	bech32pkg "github.com/btcsuite/btcd/address/v2/bech32"
 )
 
 func bech32Encode(_ js.Value, args []js.Value) any {

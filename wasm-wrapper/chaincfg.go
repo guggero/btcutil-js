@@ -5,7 +5,7 @@ package main
 import (
 	"syscall/js"
 
-	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/chaincfg/v2"
 )
 
 func chaincfgGetParams(_ js.Value, args []js.Value) any {

@@ -5,7 +5,7 @@ package main
 import (
 	"syscall/js"
 
-	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/address/v2"
 )
 
 func hashHash160(_ js.Value, args []js.Value) any {
@@ -16,5 +16,5 @@ func hashHash160(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	return okResult(bytesToJS(btcutil.Hash160(b)))
+	return okResult(bytesToJS(address.Hash160(b)))
 }

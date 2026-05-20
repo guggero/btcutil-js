@@ -5,11 +5,11 @@ package main
 import (
 	"syscall/js"
 
+	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/txscript/v2"
+	"github.com/btcsuite/btcd/wire/v2"
 )
 
 // ---------------------------------------------------------------------------
@@ -378,7 +378,7 @@ func txscriptPayToAddrScript(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	addr, err := btcutil.DecodeAddress(args[0].String(), params)
+	addr, err := address.DecodeAddress(args[0].String(), params)
 	if err != nil {
 		return errfResult("decode address: %s", err)
 	}
@@ -436,13 +436,13 @@ func txscriptMultiSigScript(_ js.Value, args []js.Value) any {
 	}
 
 	n := args[0].Length()
-	pubkeys := make([]*btcutil.AddressPubKey, n)
+	pubkeys := make([]*address.AddressPubKey, n)
 	for i := 0; i < n; i++ {
 		b, e := bytesFromArg(args[0].Index(i))
 		if e != nil {
 			return e
 		}
-		addr, err := btcutil.NewAddressPubKey(b, params)
+		addr, err := address.NewAddressPubKey(b, params)
 		if err != nil {
 			return errfResult("newAddressPubKey[%d]: %s", i, err)
 		}

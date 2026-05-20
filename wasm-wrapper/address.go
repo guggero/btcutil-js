@@ -5,7 +5,7 @@ package main
 import (
 	"syscall/js"
 
-	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/address/v2"
 )
 
 func addressDecode(_ js.Value, args []js.Value) any {
@@ -18,7 +18,7 @@ func addressDecode(_ js.Value, args []js.Value) any {
 		return e
 	}
 
-	addr, err := btcutil.DecodeAddress(args[0].String(), params)
+	addr, err := address.DecodeAddress(args[0].String(), params)
 	if err != nil {
 		return errfResult("decode address: %s", err)
 	}
@@ -30,25 +30,25 @@ func addressDecode(_ js.Value, args []js.Value) any {
 	}
 
 	switch a := addr.(type) {
-	case *btcutil.AddressPubKeyHash:
+	case *address.AddressPubKeyHash:
 		info["type"] = "p2pkh"
 		info["hash160"] = bytesToJS(a.Hash160()[:])
-	case *btcutil.AddressScriptHash:
+	case *address.AddressScriptHash:
 		info["type"] = "p2sh"
 		info["hash160"] = bytesToJS(a.Hash160()[:])
-	case *btcutil.AddressTaproot:
+	case *address.AddressTaproot:
 		info["type"] = "p2tr"
 		info["witnessVersion"] = int(a.WitnessVersion())
 		info["witnessProgram"] = bytesToJS(a.WitnessProgram())
-	case *btcutil.AddressWitnessPubKeyHash:
+	case *address.AddressWitnessPubKeyHash:
 		info["type"] = "p2wpkh"
 		info["witnessVersion"] = int(a.WitnessVersion())
 		info["witnessProgram"] = bytesToJS(a.WitnessProgram())
-	case *btcutil.AddressWitnessScriptHash:
+	case *address.AddressWitnessScriptHash:
 		info["type"] = "p2wsh"
 		info["witnessVersion"] = int(a.WitnessVersion())
 		info["witnessProgram"] = bytesToJS(a.WitnessProgram())
-	case *btcutil.AddressPubKey:
+	case *address.AddressPubKey:
 		info["type"] = "p2pk"
 		info["pubKeyFormat"] = int(a.Format())
 	default:
@@ -70,7 +70,7 @@ func addressFromPubKeyHash(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	addr, err := btcutil.NewAddressPubKeyHash(hash, params)
+	addr, err := address.NewAddressPubKeyHash(hash, params)
 	if err != nil {
 		return errfResult("fromPubKeyHash: %s", err)
 	}
@@ -89,7 +89,7 @@ func addressFromScriptHash(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	addr, err := btcutil.NewAddressScriptHashFromHash(hash, params)
+	addr, err := address.NewAddressScriptHashFromHash(hash, params)
 	if err != nil {
 		return errfResult("fromScriptHash: %s", err)
 	}
@@ -108,7 +108,7 @@ func addressFromScript(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	addr, err := btcutil.NewAddressScriptHash(script, params)
+	addr, err := address.NewAddressScriptHash(script, params)
 	if err != nil {
 		return errfResult("fromScript: %s", err)
 	}
@@ -127,7 +127,7 @@ func addressFromWitnessPubKeyHash(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	addr, err := btcutil.NewAddressWitnessPubKeyHash(prog, params)
+	addr, err := address.NewAddressWitnessPubKeyHash(prog, params)
 	if err != nil {
 		return errfResult("fromWitnessPubKeyHash: %s", err)
 	}
@@ -146,7 +146,7 @@ func addressFromWitnessScriptHash(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	addr, err := btcutil.NewAddressWitnessScriptHash(prog, params)
+	addr, err := address.NewAddressWitnessScriptHash(prog, params)
 	if err != nil {
 		return errfResult("fromWitnessScriptHash: %s", err)
 	}
@@ -165,7 +165,7 @@ func addressFromTaproot(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	addr, err := btcutil.NewAddressTaproot(prog, params)
+	addr, err := address.NewAddressTaproot(prog, params)
 	if err != nil {
 		return errfResult("fromTaproot: %s", err)
 	}
@@ -184,7 +184,7 @@ func addressFromPubKey(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	addr, err := btcutil.NewAddressPubKey(pub, params)
+	addr, err := address.NewAddressPubKey(pub, params)
 	if err != nil {
 		return errfResult("fromPubKey: %s", err)
 	}

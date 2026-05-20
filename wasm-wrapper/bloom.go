@@ -5,7 +5,7 @@ package main
 import (
 	"syscall/js"
 
-	"github.com/btcsuite/btcd/btcutil/bloom"
+	"github.com/btcsuite/btcd/btcutil/v2/bloom"
 )
 
 func bloomMurmurHash3(_ js.Value, args []js.Value) any {

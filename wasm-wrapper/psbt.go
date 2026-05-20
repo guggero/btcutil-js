@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"syscall/js"
 
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
-	btcpsbt "github.com/btcsuite/btcd/btcutil/psbt"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/btcutil/v2/hdkeychain"
+	btcpsbt "github.com/btcsuite/btcd/psbt/v2"
+	"github.com/btcsuite/btcd/wire/v2"
 )
 
 // ---------------------------------------------------------------------------
