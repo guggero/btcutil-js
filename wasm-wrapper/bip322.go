@@ -8,6 +8,7 @@ import (
 
 	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/bip322"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/wire/v2"
 )
 
@@ -130,6 +131,54 @@ func bip322SerializeTxWitness(_ js.Value, args []js.Value) any {
 		return errfResult("serializeTxWitness: %s", err)
 	}
 	return okResult(bytesToJS(serialized))
+}
+
+// signHelper decodes a private key argument and runs the given signer.
+func signHelper(args []js.Value,
+	signer func(message string,
+		privateKey *btcec.PrivateKey) (string, error)) any {
+
+	if e := checkArgs(args, 2, "message, privateKey"); e != nil {
+		return e
+	}
+	privBytes, e := bytesFromArg(args[1])
+	if e != nil {
+		return e
+	}
+	privKey, _ := btcec.PrivKeyFromBytes(privBytes)
+	sig, err := signer(args[0].String(), privKey)
+	if err != nil {
+		return errfResult("sign: %s", err)
+	}
+	return okResult(sig)
+}
+
+// bip322SignP2TR wraps bip322.SignP2TR.
+// Args: message (string), privateKey (Bytes)
+// Returns: base64-encoded BIP-322 signature string
+func bip322SignP2TR(_ js.Value, args []js.Value) any {
+	return signHelper(args, bip322.SignP2TR)
+}
+
+// bip322SignP2WPKH wraps bip322.SignP2WPKH.
+// Args: message (string), privateKey (Bytes)
+// Returns: base64-encoded BIP-322 signature string
+func bip322SignP2WPKH(_ js.Value, args []js.Value) any {
+	return signHelper(args, bip322.SignP2WPKH)
+}
+
+// bip322SignNestedP2WPKH wraps bip322.SignNestedP2WPKH.
+// Args: message (string), privateKey (Bytes)
+// Returns: base64-encoded BIP-322 signature string
+func bip322SignNestedP2WPKH(_ js.Value, args []js.Value) any {
+	return signHelper(args, bip322.SignNestedP2WPKH)
+}
+
+// bip322SignP2PKH wraps bip322.SignP2PKH.
+// Args: message (string), privateKey (Bytes)
+// Returns: base64-encoded BIP-322 signature string
+func bip322SignP2PKH(_ js.Value, args []js.Value) any {
+	return signHelper(args, bip322.SignP2PKH)
 }
 
 // bip322ParseTxWitness wraps bip322.ParseTxWitness.

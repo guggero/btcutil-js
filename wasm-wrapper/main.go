@@ -67,6 +67,10 @@ func main() {
 			"buildToSignPacketFull":   js.FuncOf(bip322BuildToSignPacketFull),
 			"serializeTxWitness":      js.FuncOf(bip322SerializeTxWitness),
 			"parseTxWitness":          js.FuncOf(bip322ParseTxWitness),
+			"signP2TR":                js.FuncOf(bip322SignP2TR),
+			"signP2WPKH":              js.FuncOf(bip322SignP2WPKH),
+			"signNestedP2WPKH":        js.FuncOf(bip322SignNestedP2WPKH),
+			"signP2PKH":               js.FuncOf(bip322SignP2PKH),
 		},
 		"txsort": map[string]any{
 			"sort":     js.FuncOf(txsortSort),

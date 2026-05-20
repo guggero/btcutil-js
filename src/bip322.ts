@@ -88,6 +88,61 @@ export const bip322 = {
     );
   },
 
+  /** Sign a message using BIP-322 with a P2TR (Pay-to-Taproot) address.
+   *  Calls Go: bip322.SignP2TR() from btcutil/bip322.
+   *
+   *  @param message    - The message to sign.
+   *  @param privateKey - The 32-byte private key (hex string or Uint8Array).
+   *  @returns Base64-encoded BIP-322 signature. */
+  async signP2TR(message: string, privateKey: Bytes): Promise<string> {
+    await init();
+    return unwrap<string>(
+      g().bip322.signP2TR(message, privateKey),
+    );
+  },
+
+  /** Sign a message using BIP-322 with a P2WPKH (native SegWit) address.
+   *  Calls Go: bip322.SignP2WPKH() from btcutil/bip322.
+   *
+   *  @param message    - The message to sign.
+   *  @param privateKey - The 32-byte private key (hex string or Uint8Array).
+   *  @returns Base64-encoded BIP-322 signature. */
+  async signP2WPKH(message: string, privateKey: Bytes): Promise<string> {
+    await init();
+    return unwrap<string>(
+      g().bip322.signP2WPKH(message, privateKey),
+    );
+  },
+
+  /** Sign a message using BIP-322 with a Nested P2WPKH (P2SH-P2WPKH) address.
+   *  Calls Go: bip322.SignNestedP2WPKH() from btcutil/bip322.
+   *
+   *  @param message    - The message to sign.
+   *  @param privateKey - The 32-byte private key (hex string or Uint8Array).
+   *  @returns Base64-encoded BIP-322 signature. */
+  async signNestedP2WPKH(
+    message: string,
+    privateKey: Bytes,
+  ): Promise<string> {
+    await init();
+    return unwrap<string>(
+      g().bip322.signNestedP2WPKH(message, privateKey),
+    );
+  },
+
+  /** Sign a message using BIP-322 with a legacy P2PKH address.
+   *  Calls Go: bip322.SignP2PKH() from btcutil/bip322.
+   *
+   *  @param message    - The message to sign.
+   *  @param privateKey - The 32-byte private key (hex string or Uint8Array).
+   *  @returns Base64-encoded BIP-322 signature. */
+  async signP2PKH(message: string, privateKey: Bytes): Promise<string> {
+    await init();
+    return unwrap<string>(
+      g().bip322.signP2PKH(message, privateKey),
+    );
+  },
+
   /** Parse serialized witness bytes back into a witness stack.
    *  Calls Go: bip322.ParseTxWitness() from btcutil/bip322.
    *
