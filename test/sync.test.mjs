@@ -105,6 +105,25 @@ describe('sync API', () => {
     );
   });
 
+  // Regression: bip322.verifyMessage goes through a JSON marshal on the Go
+  // side; the sync wrapper must JSON.parse it and shape it into a
+  // VerifyResult object, just like the async wrapper does. Without the sync
+  // override in init.ts this returns the raw JSON string instead.
+  it('bip322 verifyMessage returns a structured object (not a JSON string)', () => {
+    const result = lib.bip322.verifyMessage(
+      'Hello World',
+      'bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l',
+      'smpAkcwRAIgZRfIY3p7/DoVTty6YZbWS71bc5Vct9p9Fia83eRmw2QCICK/ENGfwLtptFlu' +
+        'MGs2KsqoNSk89pO7F29zJLUx9a/sASECx/EgAxlkQpQ9hYjgGu6EBCPMVPwVIVJqO4XCs' +
+        'MvViHI=',
+      'mainnet',
+    );
+    assert.equal(typeof result, 'object',
+      `expected object, got ${typeof result}: ${result}`);
+    assert.equal(result.valid, true);
+    assert.equal(result.timeConstraints, undefined);
+  });
+
   it('tx decode / hash', () => {
     const legacyTx =
       '02000000' + '01' +

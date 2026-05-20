@@ -162,6 +162,13 @@ function buildSyncApi(): BtcutilSync {
   txNs.encode = (decoded: any) =>
     unwrap<Uint8Array>(raw.tx.encode(JSON.stringify(txToJson(decoded))));
 
+  const bip322Ns = wrapNamespace(raw.bip322);
+  bip322Ns.verifyMessage = (...args: any[]) => {
+    const json = unwrap<string>(raw.bip322.verifyMessage(...args));
+    const r = JSON.parse(json);
+    return { valid: r.valid || false, timeConstraints: r.timeConstraints };
+  };
+
   const psbtNs = wrapNamespace(raw.psbt);
   psbtNs.decode = (b64: any) =>
     psbtFromJson(JSON.parse(unwrap<string>(raw.psbt.decode(b64))));
@@ -185,7 +192,7 @@ function buildSyncApi(): BtcutilSync {
     hash: wrapNamespace(raw.hash),
     wif: wrapNamespace(raw.wif),
     hdkeychain: wrapNamespace(raw.hdkeychain),
-    bip322: wrapNamespace(raw.bip322),
+    bip322: bip322Ns,
     txsort: wrapNamespace(raw.txsort),
     tx: txNs,
     psbt: psbtNs,
