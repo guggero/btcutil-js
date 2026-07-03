@@ -1,6 +1,6 @@
 {
   "name": "btcutil-js",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Bitcoin utility library (btcutil) for JavaScript/TypeScript via WebAssembly",
   "type": "module",
   "main": "./dist/index.cjs",
