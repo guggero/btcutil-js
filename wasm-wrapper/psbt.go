@@ -360,13 +360,14 @@ func psbtToJSON(pkt *btcpsbt.Packet) PsbtJSON {
 	}
 
 	return PsbtJSON{
-		UnsignedTx: txToJSON(pkt.UnsignedTx),
-		XPubs:      xpubsToJSON(pkt.XPubs),
-		Unknowns:   unknownsToJSON(pkt.Unknowns),
-		Inputs:     inputs,
-		Outputs:    outputs,
-		IsComplete: pkt.IsComplete(),
-		Fee:        fee,
+		UnsignedTx:           txToJSON(pkt.UnsignedTx),
+		XPubs:                xpubsToJSON(pkt.XPubs),
+		GenericSignedMessage: pkt.GenericSignedMessage,
+		Unknowns:             unknownsToJSON(pkt.Unknowns),
+		Inputs:               inputs,
+		Outputs:              outputs,
+		IsComplete:           pkt.IsComplete(),
+		Fee:                  fee,
 	}
 }
 
@@ -386,6 +387,7 @@ func psbtFromData(j PsbtDataJSON) (*btcpsbt.Packet, error) {
 	}
 
 	pkt.XPubs = xpubsFromJSON(j.XPubs)
+	pkt.GenericSignedMessage = j.GenericSignedMessage
 	pkt.Unknowns = unknownsFromJSON(j.Unknowns)
 
 	for i := 0; i < len(j.Inputs) && i < len(pkt.Inputs); i++ {

@@ -205,6 +205,9 @@ export interface PsbtOutputInfo {
 export interface PsbtData {
   unsignedTx: TxData;
   xpubs?: PsbtXpubInfo[];
+  /** BIP-322 generic signed message (global key type 0x09). An empty string
+   *  is a valid message, so absent (`undefined`) is distinct from `""`. */
+  genericSignedMessage?: string;
   unknowns?: PsbtUnknownInfo[];
   inputs: PsbtInputInfo[];
   outputs: PsbtOutputInfo[];

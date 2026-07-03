@@ -162,6 +162,7 @@ export function psbtFromJson(j: any): PsbtDecodeResult {
   return {
     unsignedTx: txFromJson(j.unsignedTx),
     xpubs: (j.xpubs ?? []).map(xpubFromJson),
+    genericSignedMessage: j.genericSignedMessage ?? undefined,
     unknowns: (j.unknowns ?? []).map(unknownFromJson),
     inputs: (j.inputs ?? []).map(psbtInputFromJson),
     outputs: (j.outputs ?? []).map(psbtOutputFromJson),
@@ -178,6 +179,10 @@ export function psbtToJson(p: PsbtData): any {
     outputs: p.outputs.map(psbtOutputToJson),
   };
   if (p.xpubs && p.xpubs.length > 0) out.xpubs = p.xpubs.map(xpubToJson);
+  // An empty string is a valid BIP-322 message, so only absence is skipped.
+  if (p.genericSignedMessage != null) {
+    out.genericSignedMessage = p.genericSignedMessage;
+  }
   if (p.unknowns && p.unknowns.length > 0) {
     out.unknowns = p.unknowns.map(unknownToJson);
   }

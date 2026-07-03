@@ -337,23 +337,25 @@ type PsbtOutputJSON struct {
 // derived txid), xpubs, unknowns, and the per-index PSBT input/output
 // records.
 type PsbtDataJSON struct {
-	UnsignedTx TxDataJSON       `json:"unsignedTx"`
-	XPubs      []XPubJSON       `json:"xpubs,omitempty"`
-	Unknowns   []UnknownJSON    `json:"unknowns,omitempty"`
-	Inputs     []PsbtInputJSON  `json:"inputs,omitempty"`
-	Outputs    []PsbtOutputJSON `json:"outputs,omitempty"`
+	UnsignedTx           TxDataJSON       `json:"unsignedTx"`
+	XPubs                []XPubJSON       `json:"xpubs,omitempty"`
+	GenericSignedMessage *string          `json:"genericSignedMessage,omitempty"`
+	Unknowns             []UnknownJSON    `json:"unknowns,omitempty"`
+	Inputs               []PsbtInputJSON  `json:"inputs,omitempty"`
+	Outputs              []PsbtOutputJSON `json:"outputs,omitempty"`
 }
 
 // PsbtJSON is the decode-output shape: PsbtDataJSON plus decode-time
 // derived fields (fee, isComplete, and the unsignedTx with txid/wtxid).
 type PsbtJSON struct {
-	UnsignedTx TxJSON           `json:"unsignedTx"`
-	XPubs      []XPubJSON       `json:"xpubs,omitempty"`
-	Unknowns   []UnknownJSON    `json:"unknowns,omitempty"`
-	Inputs     []PsbtInputJSON  `json:"inputs,omitempty"`
-	Outputs    []PsbtOutputJSON `json:"outputs,omitempty"`
-	IsComplete bool             `json:"isComplete"`
-	Fee        int64            `json:"fee"`
+	UnsignedTx           TxJSON           `json:"unsignedTx"`
+	XPubs                []XPubJSON       `json:"xpubs,omitempty"`
+	GenericSignedMessage *string          `json:"genericSignedMessage,omitempty"`
+	Unknowns             []UnknownJSON    `json:"unknowns,omitempty"`
+	Inputs               []PsbtInputJSON  `json:"inputs,omitempty"`
+	Outputs              []PsbtOutputJSON `json:"outputs,omitempty"`
+	IsComplete           bool             `json:"isComplete"`
+	Fee                  int64            `json:"fee"`
 }
 
 // ---------------------------------------------------------------------------
