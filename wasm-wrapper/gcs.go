@@ -5,7 +5,7 @@ package main
 import (
 	"syscall/js"
 
-	"github.com/btcsuite/btcd/btcutil/gcs"
+	"github.com/btcsuite/btcd/btcutil/v2/gcs"
 )
 
 func gcsBuildFilter(_ js.Value, args []js.Value) any {
