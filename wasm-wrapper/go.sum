@@ -10,8 +10,6 @@ github.com/btcsuite/btcd/chaincfg/v2 v2.0.0 h1:M/RTtXfXA9odC1RUEOyZFXj/NXKVHPYZX
 github.com/btcsuite/btcd/chaincfg/v2 v2.0.0/go.mod h1:rHgHIXYYfn70m25a+BJ9f9z7VZAsTiDQGB2XYaippGQ=
 github.com/btcsuite/btcd/chainhash/v2 v2.0.0 h1:PMLlSloHJuEeB80XG9EjpXWNEKAZAMLl6YHZ6YsEuoA=
 github.com/btcsuite/btcd/chainhash/v2 v2.0.0/go.mod h1:mKxcZ7oGTXE7IRV+sS9hP4EVBwc/SzfNR+52IsOP9j8=
-github.com/btcsuite/btcd/txscript/v2 v2.0.0 h1:pEmmHaC8eRx6KSB63zSVJD7qrit9/c9cLSrw++XrYP8=
-github.com/btcsuite/btcd/txscript/v2 v2.0.0/go.mod h1:pZXabc11Xr9nz/18kXY3yErdAajYc3gi28Zqb3KqlFo=
 github.com/btcsuite/btcd/wire/v2 v2.0.0 h1:mYSKzZZ0a1sK+aMhXzfDSVsSzRkWkU3x2U04TFRS2z8=
 github.com/btcsuite/btcd/wire/v2 v2.0.0/go.mod h1:bGxkPkk8IiDvUo1D96wE03llBIk7p2MdWYRyAQwLmqM=
 github.com/btcsuite/btclog v1.0.0 h1:sEkpKJMmfGiyZjADwEIgB1NSwMyfdD1FB8v6+w1T0Ns=
@@ -26,6 +24,8 @@ github.com/guggero/btcd/bip322 v0.0.0-20260703084944-26b19cc04355 h1:7hz+wEDfUMG
 github.com/guggero/btcd/bip322 v0.0.0-20260703084944-26b19cc04355/go.mod h1:S//Nmi6mBoNzmnMOnePDFmS+eW4gvSqI8tc0CHDnHXs=
 github.com/guggero/btcd/psbt/v2 v2.0.0-20260703084944-26b19cc04355 h1:FWmm0fj/C4EjDV43ucrIINR66ZRK/Lk5ifjHljC0vlo=
 github.com/guggero/btcd/psbt/v2 v2.0.0-20260703084944-26b19cc04355/go.mod h1:VGp4rjKPrvnRKAC4NHjrC63b9Eu7c53+zPG4pfpkTHw=
+github.com/guggero/btcd/txscript/v2 v2.0.0-20260703084944-26b19cc04355 h1:QEZUFEEhg5Nzzterd2EF4e9PEIriw+UWCyeRjdhbzBM=
+github.com/guggero/btcd/txscript/v2 v2.0.0-20260703084944-26b19cc04355/go.mod h1:Q30ltpfH/3PVz3lpq8v9GosWUJEOgyAN43UExHYlXxs=
 github.com/kcalvinalvin/anet v0.0.0-20251112173137-d8ddc1f6dbee h1:FPP9HDkBbPyniu+u7FHZg+kKFX1WW0gxOGteJ0h3AJk=
 github.com/kcalvinalvin/anet v0.0.0-20251112173137-d8ddc1f6dbee/go.mod h1:N6sz6HwJAenJ6d+/xmSl0ikfV05ZrVGmjt1ryy/WOtE=
 github.com/kkdai/bstream v1.0.0 h1:Se5gHwgp2VT2uHfDrkbbgbgEvV9cimLELwrPJctSjg8=

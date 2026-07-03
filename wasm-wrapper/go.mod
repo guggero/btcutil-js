@@ -29,4 +29,5 @@ require (
 replace (
 	github.com/btcsuite/btcd/bip322 => github.com/guggero/btcd/bip322 v0.0.0-20260703084944-26b19cc04355
 	github.com/btcsuite/btcd/psbt/v2 => github.com/guggero/btcd/psbt/v2 v2.0.0-20260703084944-26b19cc04355
+	github.com/btcsuite/btcd/txscript/v2 => github.com/guggero/btcd/txscript/v2 v2.0.0-20260703084944-26b19cc04355
 )
