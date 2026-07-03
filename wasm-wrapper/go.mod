@@ -27,6 +27,6 @@ require (
 
 // The BIP-322 package is not yet merged. The PR also updates the psbt package.
 replace (
-	github.com/btcsuite/btcd/bip322 => github.com/guggero/btcd/bip322 v0.0.0-20260520133649-725e48bcc9d6
-	github.com/btcsuite/btcd/psbt/v2 => github.com/guggero/btcd/psbt/v2 v2.0.0-20260520130604-b4dd026ca1e8
+	github.com/btcsuite/btcd/bip322 => github.com/guggero/btcd/bip322 v0.0.0-20260703084944-26b19cc04355
+	github.com/btcsuite/btcd/psbt/v2 => github.com/guggero/btcd/psbt/v2 v2.0.0-20260703084944-26b19cc04355
 )
