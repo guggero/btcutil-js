@@ -15,6 +15,15 @@ function hexToBase64(hex) {
   return Buffer.from(hex, 'hex').toString('base64');
 }
 
+// Serialise a value to JSON and read it straight back — the journey a decoded
+// PSBT takes when it is stored, cached, or sent across a boundary (worker,
+// network, disk). Byte fields (Uint8Array) must survive this as hex strings;
+// a plain Uint8Array would stringify to `{"0":..,"1":..}` and be silently
+// dropped on re-encode.
+function jsonRoundTrip(v) {
+  return JSON.parse(JSON.stringify(v));
+}
+
 // Deep-compare two decoded PSBTs. Converts Uint8Array values to hex strings
 // (and array buffers used as `keys` in maps) so deepEqual works reliably.
 function normalize(v) {
@@ -57,6 +66,23 @@ describe('psbt vectors: valid hex', () => {
       assertSamePsbt(d2, d1);
     });
 
+    it(`validHex[${i}]: decode → JSON round-trip → encode preserves base64`,
+      async () => {
+        const b64 = hexToBase64(hex);
+        const decoded = await psbt.decode(b64);
+        const encoded = await psbt.encode(jsonRoundTrip(decoded));
+        assert.equal(encoded, b64);
+      });
+
+    it(`validHex[${i}]: decode → JSON round-trip → encode → decode deep-matches`,
+      async () => {
+        const b64 = hexToBase64(hex);
+        const d1 = await psbt.decode(b64);
+        const e1 = await psbt.encode(jsonRoundTrip(d1));
+        const d2 = await psbt.decode(e1);
+        assertSamePsbt(d2, d1);
+      });
+
     // Skip the tx.encode round-trip for 0-input txes: btcd's wire.MsgTx
     // cannot round-trip a 0-input tx via its default witness-aware
     // Deserialize (the 0 input count is interpreted as the segwit marker).
@@ -87,6 +113,21 @@ describe('psbt vectors: valid base64', () => {
       const d2 = await psbt.decode(e1);
       assertSamePsbt(d2, d1);
     });
+
+    it(`validBase64[${i}]: decode → JSON round-trip → encode preserves base64`,
+      async () => {
+        const decoded = await psbt.decode(b64);
+        const encoded = await psbt.encode(jsonRoundTrip(decoded));
+        assert.equal(encoded, b64);
+      });
+
+    it(`validBase64[${i}]: decode → JSON round-trip → encode → decode deep-matches`,
+      async () => {
+        const d1 = await psbt.decode(b64);
+        const e1 = await psbt.encode(jsonRoundTrip(d1));
+        const d2 = await psbt.decode(e1);
+        assertSamePsbt(d2, d1);
+      });
 
     it(`validBase64[${i}]: tx.encode round-trips the unsigned tx`, async () => {
       const decoded = await psbt.decode(b64);

@@ -33,13 +33,28 @@ import type {
 // Hex helpers
 // ---------------------------------------------------------------------------
 
+/** A `Uint8Array` that serialises to a hex string via `JSON.stringify`.
+ *
+ * Plain `Uint8Array`s stringify to `{"0":1,"1":2,...}`, an object shape that
+ * does not survive a `JSON.parse` back into re-encodable bytes. Every byte
+ * field produced by the decoders is a `HexBytes` instead, so a decoded PSBT
+ * (or tx) can be serialised to JSON, sent across a boundary, parsed back, and
+ * fed straight into `encode()` — the byte fields come back as hex strings,
+ * which the encoders already accept. Still an `instanceof Uint8Array`, so the
+ * public `Uint8Array`-typed API is unchanged. */
+export class HexBytes extends Uint8Array {
+  toJSON(): string {
+    return bytesToHex(this);
+  }
+}
+
 /** Decode a (possibly empty) hex string into a Uint8Array. */
 export function hexToBytes(hex: string): Uint8Array {
-  if (hex.length === 0) return new Uint8Array(0);
+  if (hex.length === 0) return new HexBytes(0);
   if (hex.length % 2 !== 0) {
     throw new Error(`hexToBytes: odd-length hex string`);
   }
-  const out = new Uint8Array(hex.length >> 1);
+  const out = new HexBytes(hex.length >> 1);
   for (let i = 0; i < out.length; i++) {
     const hi = parseInt(hex.charAt(i * 2), 16);
     const lo = parseInt(hex.charAt(i * 2 + 1), 16);
@@ -70,7 +85,7 @@ function toHexAny(b: Bytes | undefined | null): string | undefined {
 
 /** Decode a hex string (possibly empty/undefined) to Uint8Array. */
 function fromHexOrEmpty(s: string | undefined | null): Uint8Array {
-  if (!s) return new Uint8Array(0);
+  if (!s) return new HexBytes(0);
   return hexToBytes(s);
 }
 
