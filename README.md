@@ -556,6 +556,77 @@ SHA-256 and tagged hash utilities.
 
 ---
 
+### `descriptors`
+
+BIP380 output descriptor parsing, address/script derivation, semantic-policy
+lifting, weight estimation and spending-plan construction.
+
+Unlike the other namespaces, a parsed descriptor is a **long-lived object**: the
+expensive parse (and the miniscript AST it caches) happens once, and every
+derivation reuses it. `descriptors.create()` returns a `Descriptor`; call
+`free()` when done, or let the garbage collector release the underlying
+WASM-side handle automatically.
+
+```typescript
+import { descriptors } from 'btcutil-js';
+
+const desc = await descriptors.create('wpkh(xpub6Bzik.../*)');
+desc.addressAt('mainnet', 0, 0); // 'bc1q...'
+desc.free();
+```
+
+With the [synchronous API](#synchronous-api), `create()` needs no `await` (the
+returned `Descriptor`'s methods are synchronous either way):
+
+```typescript
+const btcutil = await init();
+const desc = btcutil.descriptors.create('tr(xpub.../*)');
+const weight = desc.maxWeightToSatisfy();
+```
+
+#### `Descriptor`
+
+| Method | Go method | Description |
+|--------|-----------|-------------|
+| `toString()` | `Descriptor.String()` | Canonical descriptor string, including checksum. |
+| `descType()` | `Descriptor.DescType()` | Output type: `'Bare' \| 'Sh' \| 'Pkh' \| 'Wpkh' \| 'Wsh' \| 'ShWsh' \| 'ShWpkh' \| 'Tr'`. |
+| `keys()` | `Descriptor.Keys()` | All keys, in the order they appear. |
+| `multipathLen()` | `Descriptor.MultipathLen()` | Number of multipath elements (1 if none). |
+| `addressAt(network, multipathIndex, derivationIndex)` | `Descriptor.AddressAt()` | Derive the address at an index. |
+| `scriptCodeAt(multipathIndex, derivationIndex)` | `Descriptor.ScriptCodeAt()` | Script code (for signature hashing) at an index. |
+| `lift()` | `Descriptor.Lift()` | Abstract `SemanticPolicy` tree for analysis. |
+| `maxWeightToSatisfy()` | `Descriptor.MaxWeightToSatisfy()` | Upper bound on satisfaction weight (weight units). |
+| `planAt(multipathIndex, derivationIndex, assets)` | `Descriptor.PlanAt()` | Build a spending `Plan` from the available `assets`. |
+| `free()` | — | Release the WASM-side descriptor (idempotent). |
+
+#### `Plan`
+
+Returned by `Descriptor.planAt()`. Exposes the satisfaction sizes and completes
+the spend from concrete signatures.
+
+| Member | Go | Description |
+|--------|-----|-------------|
+| `satisfactionWeight` | `Plan.SatisfactionWeight()` | Weight, in weight units, to satisfy the plan. |
+| `scriptSigSize` | `Plan.ScriptSigSize()` | scriptSig size in bytes (with var-int prefix). |
+| `witnessSize` | `Plan.WitnessSize()` | Witness size in bytes. |
+| `satisfy(satisfier)` | `Plan.Satisfy()` | Produce `{ witness, scriptSig }` from the satisfier. |
+| `free()` | — | Release the WASM-side plan (idempotent). |
+
+The `assets` (for `planAt`) and `satisfier` (for `satisfy`) are objects of
+optional callbacks mirroring btcd's `Assets` / `Satisfier`; each is invoked with
+the concrete derived key(s) the descriptor needs at that index:
+
+```typescript
+const plan = desc.planAt(0, 0, {
+  lookupTapKeySpendSig: (pubKey) => 64,     // signature size, or false
+});
+const { witness, scriptSig } = plan.satisfy({
+  lookupTapKeySpendSig: () => mySchnorrSig, // Uint8Array | hex, or false
+});
+```
+
+---
+
 ## Testing
 
 ```bash

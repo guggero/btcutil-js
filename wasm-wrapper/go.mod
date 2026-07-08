@@ -9,6 +9,7 @@ require (
 	github.com/btcsuite/btcd/btcutil/v2 v2.0.0
 	github.com/btcsuite/btcd/chaincfg/v2 v2.0.0
 	github.com/btcsuite/btcd/chainhash/v2 v2.0.0
+	github.com/btcsuite/btcd/descriptors v1.0.0
 	github.com/btcsuite/btcd/psbt/v2 v2.0.0
 	github.com/btcsuite/btcd/txscript/v2 v2.0.0
 	github.com/btcsuite/btcd/wire/v2 v2.0.0
@@ -31,3 +32,6 @@ replace (
 	github.com/btcsuite/btcd/psbt/v2 => github.com/guggero/btcd/psbt/v2 v2.0.0-20260703084944-26b19cc04355
 	github.com/btcsuite/btcd/txscript/v2 => github.com/guggero/btcd/txscript/v2 v2.0.0-20260703084944-26b19cc04355
 )
+
+// The descriptors package also isn't merged yet.
+replace github.com/btcsuite/btcd/descriptors => github.com/guggero/btcd/descriptors v0.0.0-20260707160445-fd5e24753cfc

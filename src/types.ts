@@ -247,3 +247,89 @@ export type Network =
   | 'signet'
   | 'regtest'
   | 'simnet';
+
+// ---------------------------------------------------------------------------
+// Output descriptor shapes (BIP380)
+// ---------------------------------------------------------------------------
+
+/** The classification of a descriptor's top-level output. */
+export type DescType =
+  | 'Bare'
+  | 'Sh'
+  | 'Pkh'
+  | 'Wpkh'
+  | 'Wsh'
+  | 'ShWsh'
+  | 'ShWpkh'
+  | 'Tr';
+
+/** The kind of a semantic-policy node produced by `Descriptor.lift()`. */
+export type SemanticPolicyType =
+  | 'unsatisfiable'
+  | 'trivial'
+  | 'key'
+  | 'after'
+  | 'older'
+  | 'sha256'
+  | 'hash256'
+  | 'ripemd160'
+  | 'hash160'
+  | 'thresh';
+
+/** An abstract policy corresponding to the semantics of a descriptor, as
+ *  returned by `Descriptor.lift()`. A recursive tree; only the fields relevant
+ *  to `type` are present. */
+export interface SemanticPolicy {
+  type: SemanticPolicyType;
+  /** Present when `type` is `"key"`: the public key string. */
+  key?: string;
+  /** Present when `type` is `"after"` or `"older"`: the locktime value. */
+  lockTime?: number;
+  /** Present for the hash types: the hex-encoded hash value. */
+  hash?: string;
+  /** Present when `type` is `"thresh"`: the required threshold count. */
+  threshold?: number;
+  /** Present when `type` is `"thresh"`: the nested policies. */
+  policies?: SemanticPolicy[];
+}
+
+/** The present/missing lookup table used to construct a spending plan via
+ *  `Descriptor.planAt()`. Every lookup is optional; an absent one is treated as
+ *  "the corresponding signature is not available". Lookups are invoked with the
+ *  concrete (derived) key string(s) the descriptor requires at the planned
+ *  index. */
+export interface DescriptorAssets {
+  /** Whether an ECDSA signature is available for the given public key. */
+  lookupEcdsaSig?: (pubKey: string) => boolean;
+  /** The size, in bytes, of an available taproot key-spend signature, or a
+   *  falsy value if none is available. */
+  lookupTapKeySpendSig?: (pubKey: string) => number | false | undefined;
+  /** The size, in bytes, of an available taproot leaf-script signature, or a
+   *  falsy value if none is available. */
+  lookupTapLeafScriptSig?: (
+    pubKey: string,
+    leafHash: string,
+  ) => number | false | undefined;
+  /** The maximum relative locktime allowed. */
+  relativeLocktime?: number;
+  /** The maximum absolute locktime allowed. */
+  absoluteLocktime?: number;
+}
+
+/** Provides the concrete signatures used to complete a plan via
+ *  `Plan.satisfy()`. Each lookup returns the signature bytes (a hex string or
+ *  Uint8Array), or a falsy value if it cannot provide the data. */
+export interface DescriptorSatisfier {
+  lookupEcdsaSig?: (pubKey: string) => Bytes | false | undefined;
+  lookupTapKeySpendSig?: () => Bytes | false | undefined;
+  lookupTapLeafScriptSig?: (
+    pubKey: string,
+    leafHash: string,
+  ) => Bytes | false | undefined;
+}
+
+/** The completed witness and scriptSig produced by `Plan.satisfy()`. */
+export interface SatisfyResult {
+  witness: Uint8Array[];
+  scriptSig: Uint8Array;
+}

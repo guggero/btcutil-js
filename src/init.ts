@@ -6,6 +6,7 @@ import {
   psbtToJson,
   hexToBytes,
 } from './codec';
+import { createDescriptor } from './descriptors';
 
 // Type-only imports — erased at runtime, no circular dependency issues.
 import type { base58 as _base58 } from './base58';
@@ -25,6 +26,7 @@ import type { txscript as _txscript } from './txscript';
 import type { btcec as _btcec } from './btcec';
 import type { chaincfg as _chaincfg } from './chaincfg';
 import type { chainhash as _chainhash } from './chainhash';
+import type { descriptors as _descriptors } from './descriptors';
 
 // ---------------------------------------------------------------------------
 // Sync API type — strips Promise<> from every method return type.
@@ -69,6 +71,7 @@ export interface BtcutilSync {
   btcec: Sync<typeof _btcec>;
   chaincfg: Sync<typeof _chaincfg>;
   chainhash: Sync<typeof _chainhash>;
+  descriptors: Sync<typeof _descriptors>;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +205,12 @@ function buildSyncApi(): BtcutilSync {
     btcec: wrapNamespace(raw.btcec),
     chaincfg: wrapNamespace(raw.chaincfg),
     chainhash: wrapNamespace(raw.chainhash),
+    // Descriptors aren't a stateless namespace: create() hands back a
+    // Descriptor object whose parse is cached on the Go side. The module is
+    // already loaded here, so create() is synchronous.
+    descriptors: {
+      create: (descriptor: string) => createDescriptor(descriptor),
+    },
   } as BtcutilSync;
 }
 

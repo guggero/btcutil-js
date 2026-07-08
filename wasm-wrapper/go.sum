@@ -22,6 +22,8 @@ github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 h1:NMZiJj8QnKe1LgsbDayM4UoHwbvw
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0/go.mod h1:ZXNYxsqcloTdSy/rNShjYzMhyjf0LaoftYK0p+A3h40=
 github.com/guggero/btcd/bip322 v0.0.0-20260703084944-26b19cc04355 h1:7hz+wEDfUMGhx6pTWOwKj5JHI7M1btXDGX2cd1mt1aI=
 github.com/guggero/btcd/bip322 v0.0.0-20260703084944-26b19cc04355/go.mod h1:S//Nmi6mBoNzmnMOnePDFmS+eW4gvSqI8tc0CHDnHXs=
+github.com/guggero/btcd/descriptors v0.0.0-20260707160445-fd5e24753cfc h1:VPRihp99a4PrkZwbbtHhnhUmVJ7V0Y6yYUGwqoKlpsY=
+github.com/guggero/btcd/descriptors v0.0.0-20260707160445-fd5e24753cfc/go.mod h1:vO0nNt1mvBml82VGcsUBapXLzPODoRzgDe2pC+5xZd0=
 github.com/guggero/btcd/psbt/v2 v2.0.0-20260703084944-26b19cc04355 h1:FWmm0fj/C4EjDV43ucrIINR66ZRK/Lk5ifjHljC0vlo=
 github.com/guggero/btcd/psbt/v2 v2.0.0-20260703084944-26b19cc04355/go.mod h1:VGp4rjKPrvnRKAC4NHjrC63b9Eu7c53+zPG4pfpkTHw=
 github.com/guggero/btcd/txscript/v2 v2.0.0-20260703084944-26b19cc04355 h1:QEZUFEEhg5Nzzterd2EF4e9PEIriw+UWCyeRjdhbzBM=

@@ -195,6 +195,17 @@ func main() {
 			"newHashFromStr": js.FuncOf(chainhashNewHashFromStr),
 			"hashToString":   js.FuncOf(chainhashHashToString),
 		},
+		"descriptors": map[string]any{
+			"new":                js.FuncOf(descriptorNew),
+			"free":               js.FuncOf(descriptorFree),
+			"addressAt":          js.FuncOf(descriptorAddressAt),
+			"scriptCodeAt":       js.FuncOf(descriptorScriptCodeAt),
+			"lift":               js.FuncOf(descriptorLift),
+			"maxWeightToSatisfy": js.FuncOf(descriptorMaxWeightToSatisfy),
+			"planAt":             js.FuncOf(descriptorPlanAt),
+			"planSatisfy":        js.FuncOf(planSatisfy),
+			"planFree":           js.FuncOf(planFree),
+		},
 	}
 
 	// Signal readiness — pass the bridge namespace as the callback's sole

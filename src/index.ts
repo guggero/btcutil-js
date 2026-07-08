@@ -37,3 +37,4 @@ export type { KeyPairResult, RecoverCompactResult } from './btcec';
 export { chaincfg } from './chaincfg';
 export type { ChainParams } from './chaincfg';
 export { chainhash } from './chainhash';
+export { descriptors, Descriptor, Plan } from './descriptors';
