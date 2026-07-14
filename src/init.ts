@@ -7,6 +7,12 @@ import {
   hexToBytes,
 } from './codec';
 import { createDescriptor } from './descriptors';
+import {
+  createHeaderChain,
+  createWatchList,
+  matchFiltersSync,
+  scanBlockSync,
+} from './neutrino';
 
 // Type-only imports — erased at runtime, no circular dependency issues.
 import type { base58 as _base58 } from './base58';
@@ -27,6 +33,7 @@ import type { btcec as _btcec } from './btcec';
 import type { chaincfg as _chaincfg } from './chaincfg';
 import type { chainhash as _chainhash } from './chainhash';
 import type { descriptors as _descriptors } from './descriptors';
+import type { neutrino as _neutrino } from './neutrino';
 
 // ---------------------------------------------------------------------------
 // Sync API type — strips Promise<> from every method return type.
@@ -72,6 +79,7 @@ export interface BtcutilSync {
   chaincfg: Sync<typeof _chaincfg>;
   chainhash: Sync<typeof _chainhash>;
   descriptors: Sync<typeof _descriptors>;
+  neutrino: Sync<typeof _neutrino>;
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +218,22 @@ function buildSyncApi(): BtcutilSync {
     // already loaded here, so create() is synchronous.
     descriptors: {
       create: (descriptor: string) => createDescriptor(descriptor),
+    },
+    // Neutrino primitives follow the same stateful-handle model as
+    // descriptors; the module is loaded here, so creation is synchronous.
+    neutrino: {
+      headerChain: (network: any, state?: any) =>
+        createHeaderChain(network, state),
+      watchList: (scripts?: any) => createWatchList(scripts),
+      matchFilters: (
+        watch: any, startHeight: any, filterFile: any, headers: any,
+        filterHeaders: any, prevFilterHeader: any,
+      ) => matchFiltersSync(
+        watch, startHeight, filterFile, headers, filterHeaders,
+        prevFilterHeader,
+      ),
+      scanBlock: (watch: any, blockBytes: any) =>
+        scanBlockSync(watch, blockBytes),
     },
   } as BtcutilSync;
 }

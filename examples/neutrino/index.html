@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>btcutil-js — watch-only wallet (neutrino over HTTP)</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font: 15px/1.5 system-ui, sans-serif;
+      max-width: 60rem; margin: 2rem auto; padding: 0 1rem;
+    }
+    h1 { font-size: 1.4rem; }
+    fieldset { border: 1px solid #8884; border-radius: 8px; margin: 1rem 0; }
+    label { display: block; margin: .5rem 0 .1rem; font-weight: 600; }
+    input, select {
+      width: 100%; box-sizing: border-box; padding: .45rem;
+      border: 1px solid #8886; border-radius: 6px; font: inherit;
+    }
+    button {
+      margin-top: .8rem; padding: .5rem 1.2rem; font: inherit;
+      border: 0; border-radius: 6px; background: #f7931a; color: #fff;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .5; cursor: default; }
+    progress { width: 100%; height: .8rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: .5rem; }
+    th, td {
+      text-align: left; padding: .3rem .5rem;
+      border-bottom: 1px solid #8883; font-variant-numeric: tabular-nums;
+    }
+    td.mono { font-family: ui-monospace, monospace; font-size: .85em; }
+    #log {
+      font-family: ui-monospace, monospace; font-size: .8rem;
+      white-space: pre-wrap; background: #8881; padding: .6rem;
+      border-radius: 6px; max-height: 12rem; overflow-y: auto;
+    }
+    .stat { display: inline-block; margin-right: 1.5rem; }
+    .stat b { font-size: 1.2rem; }
+  </style>
+</head>
+<body>
+  <h1>Watch-only wallet — compact filters over HTTP</h1>
+  <p>
+    Headers are validated (proof of work, retargets), filters are verified
+    against their commitment chain and matched — all locally in WASM. The
+    server only ever sees which block ranges you download.
+  </p>
+
+  <fieldset>
+    <legend>Settings</legend>
+    <label for="network">Network</label>
+    <select id="network">
+      <option value="signet" selected>signet</option>
+      <option value="mainnet">mainnet</option>
+      <option value="testnet">testnet3</option>
+      <option value="testnet4">testnet4</option>
+    </select>
+    <label for="server">
+      block-dn server (auto-set per network; edit to use your own)
+    </label>
+    <input id="server" value="https://signet.block-dn.org" />
+    <label for="batch">
+      Parallel filter batches (1–16; each in-flight mainnet file is up to
+      ~50 MiB)
+    </label>
+    <input id="batch" type="number" min="1" max="16" value="4" />
+  </fieldset>
+
+  <fieldset>
+    <legend>Watch</legend>
+    <label for="watch">Address or output descriptor</label>
+    <input id="watch" placeholder="tb1q... or wpkh(xpub.../<0;1>/*)" />
+    <label for="birthday">
+      Scan from height (blank = auto by address/descriptor type)
+    </label>
+    <input id="birthday" type="number" placeholder="auto" />
+    <button id="add">Add &amp; scan</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Progress</legend>
+    <div class="stat">tip <b id="tip">–</b></div>
+    <div class="stat">scanned <b id="scanned">–</b></div>
+    <div class="stat">balance <b id="balance">–</b></div>
+    <progress id="bar" max="1" value="0"></progress>
+    <div id="log"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Local cache</legend>
+    <div id="cache">nothing cached yet</div>
+    <button id="clear">Clear cached chain data</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Unspent outputs</legend>
+    <table>
+      <thead>
+        <tr>
+          <th>Outpoint</th><th>Address</th>
+          <th>Height</th><th>Value (sats)</th>
+        </tr>
+      </thead>
+      <tbody id="utxos"><tr><td colspan="4">none yet</td></tr></tbody>
+    </table>
+  </fieldset>
+
+  <script type="module">
+    import { loadBtcutil } from './lib-loader.mjs';
+    import {
+      WatchOnlyWallet, birthdayHeuristic, formatScanStats,
+      formatBytes,
+    } from './wallet.mjs';
+    import { OpfsStorage } from './storage.mjs';
+
+    const $ = (id) => document.getElementById(id);
+    const log = (msg) => {
+      $('log').textContent += msg + '\n';
+      $('log').scrollTop = $('log').scrollHeight;
+    };
+
+    // The public block-dn instances per network. Switching networks
+    // auto-fills the server field — but only if it still holds one of
+    // these defaults, so a custom (self-hosted) entry is never clobbered.
+    const defaultServers = {
+      signet: 'https://signet.block-dn.org',
+      mainnet: 'https://block-dn.org',
+      testnet: 'https://testnet3.block-dn.org',
+      testnet4: 'https://testnet4.block-dn.org',
+    };
+    $('network').onchange = () => {
+      const current = $('server').value.trim();
+      const isDefault = current === '' ||
+        Object.values(defaultServers).includes(current);
+      if (isDefault) {
+        $('server').value = defaultServers[$('network').value];
+      }
+      storage = null;
+      refreshCacheStats();
+    };
+
+    let wallet = null;
+    let storage = null;
+    let tipTimer = null;
+
+    // The OPFS store of the currently selected network, opened lazily
+    // so the cache box works before (and after clearing) a wallet.
+    async function currentStorage() {
+      if (!storage) {
+        storage = await OpfsStorage.open(
+          `neutrino-${$('network').value}`,
+        );
+      }
+      return storage;
+    }
+
+    async function refreshCacheStats() {
+      try {
+        const s = await (await currentStorage()).stats();
+        $('cache').textContent = s.totalBytes === 0
+          ? 'nothing cached yet'
+          : `${s.headerCount.toLocaleString()} headers ` +
+            `(${formatBytes(s.headersBytes)}), ` +
+            `${s.filterHeaderCount.toLocaleString()} filter headers ` +
+            `(${formatBytes(s.filterHeadersBytes)}), ` +
+            `state + wallet ` +
+            `(${formatBytes(s.stateBytes + s.walletBytes)}) — ` +
+            `${formatBytes(s.totalBytes)} total`;
+      } catch (err) {
+        $('cache').textContent = `stats unavailable: ${err.message}`;
+      }
+    }
+
+    async function openWallet() {
+      const network = $('network').value;
+      const server = $('server').value;
+      if (wallet) { wallet.close(); wallet = null; }
+
+      log(`loading WASM + opening ${network} wallet...`);
+      const { init, source } = await loadBtcutil();
+      log(`btcutil-js loaded from ${source}`);
+      const lib = await init();
+      wallet = await WatchOnlyWallet.open({
+        lib, network, serverUrl: server,
+        storage: await currentStorage(),
+        batchSize: Number($('batch').value),
+      });
+      log(`wallet open, tip ${wallet.chain.tip().tipHeight}`);
+      render();
+      await refreshCacheStats();
+    }
+
+    function render() {
+      const s = wallet.summary();
+      $('tip').textContent = s.tipHeight;
+      $('scanned').textContent = s.scannedTo;
+      $('balance').textContent =
+        (s.balanceSats / 1e8).toFixed(8) + ' BTC';
+
+      const rows = s.utxos.map((u) => `<tr>
+        <td class="mono">${u.outpoint}</td>
+        <td class="mono">${u.address}</td>
+        <td>${u.height}</td>
+        <td>${u.value.toLocaleString()}</td>
+      </tr>`);
+      $('utxos').innerHTML =
+        rows.join('') || '<tr><td colspan="4">none yet</td></tr>';
+    }
+
+    $('add').onclick = async () => {
+      $('add').disabled = true;
+      try {
+        if (!wallet) await openWallet();
+
+        const value = $('watch').value.trim();
+        const network = $('network').value;
+        if (value) {
+          const birthday = $('birthday').value === ''
+            ? birthdayHeuristic(network, value)
+            : Number($('birthday').value);
+          log(`watching ${value} from height ${birthday}`);
+          if (value.includes('(')) {
+            await wallet.addDescriptor(value, birthday);
+          } else {
+            await wallet.addAddress(value, birthday);
+          }
+        }
+
+        log('syncing headers...');
+        await wallet.syncHeaders((kind, height, target) => {
+          $('bar').max = target;
+          $('bar').value = height;
+          $('tip').textContent = `${height}/${target}`;
+        });
+        render();
+        await refreshCacheStats();
+
+        log('scanning filters...');
+        const { stats } = await wallet.scan((height, target, found) => {
+          $('bar').max = target;
+          $('bar').value = height;
+          $('scanned').textContent = `${height}/${target}`;
+          if (found) render();
+        });
+        render();
+        log(formatScanStats(stats));
+        await refreshCacheStats();
+
+        // Keep following the tip (one timer, survives repeated clicks,
+        // stops when the wallet is cleared).
+        if (tipTimer) clearInterval(tipTimer);
+        tipTimer = setInterval(async () => {
+          if (!wallet) return;
+          if (await wallet.followTip()) {
+            log(`new tip ${wallet.summary().tipHeight}`);
+            render();
+            await refreshCacheStats();
+          }
+        }, 30_000);
+      } catch (err) {
+        log(`ERROR: ${err.message}`);
+        console.error(err);
+      } finally {
+        $('add').disabled = false;
+      }
+    };
+
+    $('clear').onclick = async () => {
+      const network = $('network').value;
+      const ok = confirm(
+        `Delete all locally cached ${network} chain data (headers, ` +
+        'filter headers, chain state and watched wallet data)? The ' +
+        'next sync starts from scratch.',
+      );
+      if (!ok) return;
+
+      if (tipTimer) { clearInterval(tipTimer); tipTimer = null; }
+      if (wallet) { wallet.close(); wallet = null; }
+      await (await currentStorage()).clear();
+      await refreshCacheStats();
+
+      $('tip').textContent = '–';
+      $('scanned').textContent = '–';
+      $('balance').textContent = '–';
+      $('bar').value = 0;
+      $('utxos').innerHTML = '<tr><td colspan="4">none yet</td></tr>';
+      log(`cleared all cached ${network} data`);
+    };
+
+    // Show what's already cached for the default network on load.
+    refreshCacheStats();
+  </script>
+</body>
+</html>

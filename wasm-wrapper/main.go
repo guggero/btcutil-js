@@ -206,6 +206,29 @@ func main() {
 			"planSatisfy":        js.FuncOf(planSatisfy),
 			"planFree":           js.FuncOf(planFree),
 		},
+		"neutrino": map[string]any{
+			"headerChainNew":    js.FuncOf(neutrinoHeaderChainNew),
+			"headerChainAppend": js.FuncOf(neutrinoHeaderChainAppend),
+			"headerChainState":  js.FuncOf(neutrinoHeaderChainState),
+			"headerChainRollback": js.FuncOf(
+				neutrinoHeaderChainRollback,
+			),
+			"headerChainExport": js.FuncOf(neutrinoHeaderChainExport),
+			"headerChainFree":   js.FuncOf(neutrinoHeaderChainFree),
+			"watchListNew":      js.FuncOf(neutrinoWatchListNew),
+			"watchListAddScripts": js.FuncOf(
+				neutrinoWatchListAddScripts,
+			),
+			"watchListAddOutpoint": js.FuncOf(
+				neutrinoWatchListAddOutpoint,
+			),
+			"watchListRemoveOutpoint": js.FuncOf(
+				neutrinoWatchListRemoveOutpoint,
+			),
+			"watchListFree": js.FuncOf(neutrinoWatchListFree),
+			"matchFilters":  js.FuncOf(neutrinoMatchFilters),
+			"scanBlock":     js.FuncOf(neutrinoScanBlock),
+		},
 	}
 
 	// Signal readiness — pass the bridge namespace as the callback's sole

@@ -131,6 +131,15 @@ the `init()` return value or the per-namespace exports. The only globals
 touched are the Go runtime shims (`fs` / `process` / `crypto`) which are
 installed conditionally by Go's standard `wasm_exec.js` only when missing.
 
+## Examples
+
+Live example pages built on this library are listed at
+[examples/index.html](examples/index.html) (hosted at
+[guggero.github.io/btcutil-js/examples](https://guggero.github.io/btcutil-js/examples/)):
+BIP-322 message signing, a PSBT editor, and a browser-only watch-only
+wallet that scans the chain via BIP-158 compact filters served by
+[block-dn](https://github.com/guggero/block-dn).
+
 ## API
 
 [See full API docs here, generated with `typedoc`](https://guggero.github.io/btcutil-js/).
@@ -624,6 +633,80 @@ const { witness, scriptSig } = plan.satisfy({
   lookupTapKeySpendSig: () => mySchnorrSig, // Uint8Array | hex, or false
 });
 ```
+
+---
+
+### `neutrino`
+
+BIP157/158 light-client primitives ("neutrino over HTTP"): the validation
+and matching building blocks of a browser-based watch-only wallet. The
+fetching/persistence orchestration lives with the caller — see
+[examples/neutrino](examples/neutrino) for a complete wallet built on these
+plus [block-dn](https://github.com/guggero/block-dn) as the data source.
+
+Everything consensus- and CPU-critical runs in WASM: header validation
+follows btcd's `blockchain` rules (proof of work, difficulty retargets,
+median-time-past), filters are verified against the BIP157 commitment chain
+and matched with btcd's `gcs` package. Like `descriptors`, the stateful
+pieces are **long-lived objects** backed by WASM-side handles: call `free()`
+when done, or let the garbage collector release them.
+
+```typescript
+import { neutrino } from 'btcutil-js';
+
+// Validate raw headers (e.g. straight from a block-dn header file).
+const chain = await neutrino.headerChain('mainnet');
+chain.append(headerFileBytes); // throws on any invalid header
+const state = chain.exportState(); // ~80 KiB; resume without re-validating
+
+// Verify + match one filter file against watched scripts, in one pass.
+const watch = await neutrino.watchList([script1, script2]);
+const matches = await neutrino.matchFilters(
+  watch, 0, filterFile, headersSlice, filterHeadersSlice, '',
+);
+
+// Fully scan only the blocks whose filter matched.
+for (const m of matches) {
+  const { outputs, spends } = await neutrino.scanBlock(watch, blockBytes);
+}
+```
+
+| Method | Description |
+|--------|-------------|
+| `headerChain(network, state?)` | Create a `HeaderChain`, optionally resumed from an exported state. |
+| `watchList(scripts?)` | Create a `WatchList`, optionally seeded with output scripts. |
+| `matchFilters(watch, startHeight, filterFile, headers, filterHeaders, prevFilterHeader)` | One pass over a var-int prefixed filter file: verify every filter against the committed BIP157 filter-header chain (throws on corruption) and match against the watch list. Returns `{ height, blockHash }[]`. |
+| `scanBlock(watch, blockBytes)` | Extract watched-script outputs and watched-outpoint spends from a full block. Returns `{ outputs, spends }`. |
+
+#### `HeaderChain`
+
+A validating accumulator over raw 80-byte block headers: previous-hash
+linkage, proof of work, difficulty-retarget correctness and median-time-past,
+with accumulated chain work. Keeps a sliding window (~2000 headers) so
+shallow tail reorgs can be rolled back.
+
+| Method | Description |
+|--------|-------------|
+| `append(rawHeaders)` | Validate and append a batch; throws on the first invalid header (valid ones before it remain). Returns the new tip state. |
+| `tip()` | Current `{ tipHeight, tipHash, tipTime, chainWork }`. |
+| `rollback(height)` | Drop all headers above `height` (within the in-memory window). |
+| `exportState()` | Compact (~80 KiB) resume state; pass to `headerChain()` to resume instantly. |
+| `free()` | Release the WASM-side chain (idempotent). |
+
+#### `WatchList`
+
+The set of watched output scripts (receive detection) and outpoints (spend
+detection), parked WASM-side so large watch lists aren't re-marshalled per
+filter file.
+
+| Method | Description |
+|--------|-------------|
+| `addScripts(scripts)` | Add raw output scripts; returns the deduplicated total. |
+| `addOutpoint(txid, vout)` / `removeOutpoint(txid, vout)` | Watch/unwatch an outpoint for spend detection in `scanBlock`. |
+| `free()` | Release the WASM-side watch list (idempotent). |
+
+Measured (real mainnet data): 100k headers validate in ~240 ms; a
+2,000-filter file verifies and matches in ~12 ms.
 
 ---
 

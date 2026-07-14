@@ -38,3 +38,12 @@ export { chaincfg } from './chaincfg';
 export type { ChainParams } from './chaincfg';
 export { chainhash } from './chainhash';
 export { descriptors, Descriptor, Plan } from './descriptors';
+export { neutrino, HeaderChain, WatchList } from './neutrino';
+export type {
+  HeaderChainState,
+  FilterMatch,
+  ScanOutput,
+  ScanSpend,
+  ScanBlockResult,
+} from './neutrino';
+

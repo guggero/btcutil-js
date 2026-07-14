@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>btcutil-js — examples</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font: 15px/1.5 system-ui, sans-serif;
+      max-width: 46rem; margin: 2rem auto; padding: 0 1rem;
+    }
+    h1 { font-size: 1.4rem; }
+    ul.examples { list-style: none; padding: 0; }
+    ul.examples li {
+      border: 1px solid #8884; border-radius: 8px;
+      padding: 1rem 1.2rem; margin: 1rem 0;
+    }
+    ul.examples a.title {
+      font-size: 1.1rem; font-weight: 700;
+      color: #f7931a; text-decoration: none;
+    }
+    ul.examples a.title:hover { text-decoration: underline; }
+    ul.examples p { margin: .4rem 0 0; }
+    .source { font-size: .85rem; opacity: .8; }
+  </style>
+</head>
+<body>
+  <h1>btcutil-js — examples</h1>
+  <p>
+    Live pages built on the modules of
+    <a href="https://github.com/guggero/btcutil-js">btcutil-js</a>, the
+    Bitcoin utility library for JavaScript/TypeScript via WebAssembly.
+  </p>
+
+  <ul class="examples">
+    <li>
+      <a class="title"
+        href="https://guggero.github.io/cryptography-toolkit/#!/bip322">
+        BIP-322 message signing &amp; verification
+      </a>
+      <p>
+        Sign and verify generic Bitcoin messages (simple and full BIP-322,
+        plus legacy) — built on the <code>bip322</code> module.
+      </p>
+      <p class="source">
+        Source:
+        <a href="https://github.com/guggero/cryptography-toolkit/tree/master/pages/bip322">
+          cryptography-toolkit/pages/bip322
+        </a>
+      </p>
+    </li>
+
+    <li>
+      <a class="title"
+        href="https://guggero.github.io/cryptography-toolkit/#!/psbt-editor">
+        PSBT editor
+      </a>
+      <p>
+        Inspect, edit and finalize Partially Signed Bitcoin Transactions
+        (BIP-174) — built on the <code>psbt</code> module.
+      </p>
+      <p class="source">
+        Source:
+        <a href="https://github.com/guggero/cryptography-toolkit/tree/master/pages/psbt-editor">
+          cryptography-toolkit/pages/psbt-editor
+        </a>
+      </p>
+    </li>
+
+    <li>
+      <a class="title" href="./neutrino/">
+        Watch-only wallet (compact filters over HTTP)
+      </a>
+      <p>
+        A browser-only watch-only wallet: validates block headers, verifies
+        and matches BIP-158 compact filters locally in WASM, and fetches
+        chain data from a user-configurable
+        <a href="https://github.com/guggero/block-dn">block-dn</a> server —
+        built on the <code>neutrino</code>, <code>descriptors</code> and
+        <code>txscript</code> modules.
+      </p>
+      <p class="source">
+        Source:
+        <a href="https://github.com/guggero/btcutil-js/tree/master/examples/neutrino">
+          btcutil-js/examples/neutrino
+        </a>
+      </p>
+    </li>
+  </ul>
+</body>
+</html>
