@@ -33,11 +33,22 @@ export type {
   PrevOut,
 } from './txscript';
 export { btcec } from './btcec';
-export type { KeyPairResult, RecoverCompactResult } from './btcec';
+export type {
+  KeyPairResult,
+  RecoverCompactResult,
+  PointMultiplyResult,
+} from './btcec';
 export { chaincfg } from './chaincfg';
 export type { ChainParams } from './chaincfg';
 export { chainhash } from './chainhash';
 export { descriptors, Descriptor, Plan } from './descriptors';
+export { block } from './block';
+export { musig2 } from './musig2';
+export type {
+  Musig2AggregateKeysResult,
+  Musig2Nonces,
+  Musig2PartialSignResult,
+} from './musig2';
 export { neutrino, HeaderChain, WatchList } from './neutrino';
 export type {
   HeaderChainState,

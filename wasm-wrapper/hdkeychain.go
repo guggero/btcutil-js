@@ -8,6 +8,7 @@ import (
 	"syscall/js"
 
 	"github.com/btcsuite/btcd/btcutil/v2/hdkeychain"
+	"github.com/btcsuite/btcd/chaincfg/v2"
 )
 
 func hdNewMaster(_ js.Value, args []js.Value) any {
@@ -146,13 +147,44 @@ func hdDerivePath(_ js.Value, args []js.Value) any {
 }
 
 func hdNeuter(_ js.Value, args []js.Value) any {
-	if e := checkArgs(args, 1, "key"); e != nil {
+	if e := checkArgs(args, 1, "key[, targetPubVersion]"); e != nil {
 		return e
 	}
 	key, err := hdkeychain.NewKeyFromString(args[0].String())
 	if err != nil {
 		return errfResult("invalid extended key: %s", err)
 	}
+
+	// Keys with non-registered version bytes (yprv, zprv, ...) can't be
+	// neutered directly because btcd resolves the public version via
+	// registered chaincfg params only. With an explicit target public
+	// version we route through a registered private version instead:
+	// clone to xprv, neuter, clone the result to the requested version.
+	targetVersion, e := optBytesFromArg(args, 1)
+	if e != nil {
+		return e
+	}
+	if targetVersion != nil {
+		if len(targetVersion) != 4 {
+			return errResult("targetPubVersion must be 4 bytes")
+		}
+
+		xprv := chaincfg.MainNetParams.HDPrivateKeyID
+		clone, err := key.CloneWithVersion(xprv[:])
+		if err != nil {
+			return errfResult("neuter: %s", err)
+		}
+		pub, err := clone.Neuter()
+		if err != nil {
+			return errfResult("neuter: %s", err)
+		}
+		retargeted, err := pub.CloneWithVersion(targetVersion)
+		if err != nil {
+			return errfResult("neuter: %s", err)
+		}
+		return okResult(retargeted.String())
+	}
+
 	pub, err := key.Neuter()
 	if err != nil {
 		return errfResult("neuter: %s", err)

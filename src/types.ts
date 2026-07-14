@@ -234,6 +234,26 @@ export interface PsbtUnknownEntry {
   value: Uint8Array;
 }
 
+/** Decode-output shape from `block.decode`. */
+export interface BlockDecodeResult {
+  /** Display-order hex block hash. */
+  hash: string;
+  version: number;
+  prevBlock: string;
+  merkleRoot: string;
+  /** Unix seconds. */
+  timestamp: number;
+  bits: number;
+  nonce: number;
+  /** Full serialized size including witness data. */
+  size: number;
+  /** Stripped (pre-segwit encoding) size. */
+  legacySize: number;
+  /** BIP-141 block weight: legacySize * 3 + size. */
+  weight: number;
+  transactions: TxDecodeResult[];
+}
+
 export interface GcsFilterResult {
   filter: Uint8Array;
   n: number;

@@ -7,8 +7,9 @@ compiled to WebAssembly. Works in both Node.js and browsers.
 Provides **base58**, **bech32**, **address** encoding/decoding, **amount**
 conversions, **Hash160**, **WIF**, **BIP-32 HD key** derivation, **BIP-69
 transaction sorting**, **BIP-174 PSBT** inspection, **BIP-322 message
-verification**, **BIP-158 GCS filters**, **Bloom filter** hashing, **Neutrino**
-scanning and raw **transaction** utilities.
+verification**, **BIP-327 MuSig2** signing, **BIP-158 GCS filters**, **Bloom
+filter** hashing, **Neutrino** scanning, raw **transaction** and full
+**block** utilities.
 
 ## Quick links
 
@@ -272,7 +273,7 @@ BIP-32 hierarchical deterministic key derivation.
 | `derive(key, index)` | `ExtendedKey.Derive()` | Derive a non-hardened child. `index` must be in `[0, 2^31)`; pass hardened indices via `deriveHardened`. |
 | `deriveHardened(key, index)` | `ExtendedKey.Derive()` | Derive a hardened child (adds `0x80000000` automatically). `index` must be in `[0, 2^31)`. |
 | `derivePath(key, path)` | `ExtendedKey.Derive()` | Derive along a BIP-32 path like `"m/44'/0'/0'/0/0"`. |
-| `neuter(key)` | `ExtendedKey.Neuter()` | Convert a private key to its public counterpart. |
+| `neuter(key, targetPubVersion?)` | `ExtendedKey.Neuter()` / `CloneWithVersion()` | Convert a private key to its public counterpart. For non-registered version bytes (yprv/zprv/...), pass the target public version explicitly (4 bytes, e.g. `04b24746` for zpub). |
 | `generateSeed(length?)` | `hdkeychain.GenerateSeed()` | Generate a random seed (default 32 bytes). |
 | `publicKey(key)` | `ExtendedKey.ECPubKey()` | Get the compressed public key (Uint8Array). |
 | `address(key, network?)` | `ExtendedKey.Address()` | Get the P2PKH address. |
@@ -318,6 +319,17 @@ Transaction utilities.
 | `hasWitness(rawTx)` | `Tx.HasWitness()` | Check if the transaction contains witness data. |
 | `decode(rawTx)` | `btcutil.NewTx()` | Decode into a `TxDecodeResult`: `{ txid, wtxid, version, locktime, inputs[], outputs[] }`. |
 | `encode(data)` | `MsgTx.Serialize()` | Serialise a `TxData` (`{ version, locktime, inputs[], outputs[] }`) back to raw bytes. Round-trips with `decode()`. |
+
+---
+
+### `block`
+
+Full-block utilities.
+
+| Method | Go function | Description |
+|--------|-------------|-------------|
+| `decode(rawBlock)` | `wire.MsgBlock.Deserialize()` | Decode into `{ hash, version, prevBlock, merkleRoot, timestamp, bits, nonce, size, legacySize, weight, transactions[] }`; each transaction uses the `tx.decode` shape (with derived txid/wtxid). `weight` is the BIP-141 block weight. |
+| `merkleTree(rawBlock)` | `blockchain.BuildMerkleTreeStore()` semantics | The full merkle tree bottom-up: `levels[0]` = txids (display byte order), last level = `[merkleRoot]`. Odd levels are hashed with the standard duplicate-last rule. |
 
 ---
 
@@ -514,6 +526,7 @@ secp256k1 elliptic curve cryptography: key management, ECDSA, Schnorr, ECDH.
 | Method | Go function | Description |
 |--------|-------------|-------------|
 | `newPrivateKey()` | `btcec.NewPrivateKey()` | Generate a random private key. Returns `{ privateKey, publicKey }`. |
+| `pointMultiply(scalar, point?)` | `btcec.ScalarBaseMultNonConst()` / `ScalarMultNonConst()` | Multiply a point (omitted = generator G) by a scalar (big-endian, mod curve order). Returns `{ x, y, compressed }`. |
 | `privKeyFromBytes(privKey)` | `btcec.PrivKeyFromBytes()` | Derive key pair from private key bytes. Returns `{ privateKey, publicKey }`. |
 | `pubKeyFromBytes(pubKey)` | `btcec.ParsePubKey()` | Parse and normalize a public key to compressed form. |
 | `isCompressedPubKey(pubKey)` | `btcec.IsCompressedPubKey()` | Check if public key bytes are compressed (33 bytes). |
@@ -546,6 +559,37 @@ secp256k1 elliptic curve cryptography: key management, ECDSA, Schnorr, ECDH.
 | `schnorrParsePubKey(xOnlyPubKey)` | `schnorr.ParsePubKey()` | Parse a 32-byte x-only key. Returns 33-byte compressed. |
 | `schnorrSerializePubKey(pubKey)` | `schnorr.SerializePubKey()` | Serialize to 32-byte x-only format. |
 | `schnorrParseSignature(sig)` | `schnorr.ParseSignature()` | Parse a 64-byte Schnorr signature. |
+
+---
+
+### `musig2`
+
+[BIP-327](https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki)
+MuSig2 multi-signatures (two-round flow), wrapping the low-level
+step-by-step functions so every intermediate value is inspectable. All
+functions use BIP-327's sorted-keys convention — the public key list may be
+passed in any order, as long as it is the same list everywhere.
+
+```typescript
+const agg = await musig2.aggregateKeys([pub1, pub2]);
+const n1 = await musig2.genNonces(pub1);           // round 1, per signer
+const n2 = await musig2.genNonces(pub2);
+const combined = await musig2.aggregateNonces([n1.pubNonce, n2.pubNonce]);
+const p1 = await musig2.partialSign(               // round 2, per signer
+  n1.secNonce, priv1, combined, [pub1, pub2], msgHash);
+const p2 = await musig2.partialSign(
+  n2.secNonce, priv2, combined, [pub1, pub2], msgHash);
+const sig = await musig2.combineSigs(p1.r, [p1.s, p2.s]);
+// await btcec.schnorrVerify(agg.xOnlyKey, msgHash, sig) === true
+```
+
+| Method | Go function | Description |
+|--------|-------------|-------------|
+| `aggregateKeys(pubKeys[])` | `musig2.AggregateKeys()` | Aggregate the signers' keys. Returns `{ combinedKey (33B), xOnlyKey (32B), parityOdd }`. |
+| `genNonces(pubKey, privKey?, combinedKey?, msg?)` | `musig2.GenNonces()` | One signer's nonce pair `{ pubNonce (66B), secNonce (97B) }`. The optional arguments mix extra commitment entropy into the derivation. The secret nonce is strictly single-use. |
+| `aggregateNonces(pubNonces[])` | `musig2.AggregateNonces()` | Combine all public nonces into the 66-byte combined nonce. |
+| `partialSign(secNonce, privKey, combinedNonce, pubKeys[], msg)` | `musig2.Sign()` | One signer's partial signature `{ s (32B), r (33B) }`; `r` is the final nonce, identical for every signer. |
+| `combineSigs(finalNonce, partialSigs[])` | `musig2.CombineSigs()` | Combine the `s` values with the final nonce `r` into the final 64-byte BIP-340 signature. |
 
 ---
 

@@ -1,5 +1,6 @@
 import { Go } from './wasm_exec';
 import {
+  blockFromJson,
   txFromJson,
   txToJson,
   psbtFromJson,
@@ -25,6 +26,8 @@ import type { hdkeychain as _hdkeychain } from './hdkeychain';
 import type { bip322 as _bip322 } from './bip322';
 import type { txsort as _txsort } from './txsort';
 import type { tx as _tx } from './tx';
+import type { block as _block } from './block';
+import type { musig2 as _musig2 } from './musig2';
 import type { psbt as _psbt } from './psbt';
 import type { gcs as _gcs } from './gcs';
 import type { bloom as _bloom } from './bloom';
@@ -71,6 +74,8 @@ export interface BtcutilSync {
   bip322: Sync<typeof _bip322>;
   txsort: Sync<typeof _txsort>;
   tx: Sync<typeof _tx>;
+  block: Sync<typeof _block>;
+  musig2: Sync<typeof _musig2>;
   psbt: Sync<typeof _psbt>;
   gcs: Sync<typeof _gcs>;
   bloom: Sync<typeof _bloom>;
@@ -180,6 +185,11 @@ function buildSyncApi(): BtcutilSync {
     return { valid: r.valid || false, timeConstraints: r.timeConstraints };
   };
 
+  // block.decode goes through the JSON codec like tx.decode.
+  const blockNs = wrapNamespace(raw.block);
+  blockNs.decode = (rawBlock: any) =>
+    blockFromJson(JSON.parse(unwrap<string>(raw.block.decode(rawBlock))));
+
   const psbtNs = wrapNamespace(raw.psbt);
   psbtNs.decode = (b64: any) =>
     psbtFromJson(JSON.parse(unwrap<string>(raw.psbt.decode(b64))));
@@ -206,6 +216,8 @@ function buildSyncApi(): BtcutilSync {
     bip322: bip322Ns,
     txsort: wrapNamespace(raw.txsort),
     tx: txNs,
+    block: blockNs,
+    musig2: wrapNamespace(raw.musig2),
     psbt: psbtNs,
     gcs: wrapNamespace(raw.gcs),
     bloom: wrapNamespace(raw.bloom),

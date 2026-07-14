@@ -149,6 +149,27 @@ describe('sync API', () => {
     assert.ok(sorted.length > 0);
   });
 
+  it('btcec pointMultiply and hdkeychain neuter with target version', () => {
+    // 1 * G = the secp256k1 generator.
+    const g = lib.btcec.pointMultiply('01');
+    assert.equal(
+      toHex(g.x),
+      '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
+    );
+
+    // zprv -> zpub via explicit target version (btcd-generated pair).
+    const zpub = lib.hdkeychain.neuter(
+      'zprvAWgYBBk7JR8GjzqSzmunMCS7dAbwpYTCs1YUMDXqduMA5JFHZ3iX5s2UkAR' +
+        '6vBdcCYYa1S5o1fVLrKsrnpCQ4WpUd6aVUWP1bS2Yy5DoaKv',
+      '04b24746',
+    );
+    assert.equal(
+      zpub,
+      'zpub6jftahH18ngZxUuv6oSniLNrBCSSE1B4EEU59bwTCEt8x6aS6b2mdfLxbS4' +
+        'QS53g85SWWP6wexqeer516433gYpZQoJie2tcMYdJ1SYYYAL',
+    );
+  });
+
   it('btcec key generation and ECDSA sign/verify', () => {
     const kp = lib.btcec.newPrivateKey();
     assert.ok(kp.privateKey instanceof Uint8Array);

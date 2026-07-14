@@ -181,3 +181,51 @@ describe('btcec: negative cases', () => {
     await assert.rejects(() => btcec.privKeyFromBytes('xyz'));
   });
 });
+
+describe('btcec: pointMultiply', () => {
+  // The secp256k1 generator point.
+  const generatorX =
+    '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
+
+  it('1 * G is the generator', async () => {
+    const result = await btcec.pointMultiply('01');
+    assert.equal(toHex(result.x), generatorX);
+    assert.equal(result.y.length, 32);
+    assert.equal(result.compressed.length, 33);
+  });
+
+  it('k * G equals the public key of k', async () => {
+    const kp = await btcec.newPrivateKey();
+    const result = await btcec.pointMultiply(kp.privateKey);
+    assert.deepEqual(
+      result.compressed,
+      await btcec.serializeCompressed(kp.publicKey),
+    );
+  });
+
+  it('scalar multiplication commutes: 2*(k*G) == k*(2*G)', async () => {
+    const kp = await btcec.newPrivateKey();
+
+    const kG = await btcec.pointMultiply(kp.privateKey);
+    const twoG = await btcec.pointMultiply('02');
+    const a = await btcec.pointMultiply('02', kG.compressed);
+    const b = await btcec.pointMultiply(kp.privateKey, twoG.compressed);
+    assert.deepEqual(a.compressed, b.compressed);
+    assert.deepEqual(a.x, b.x);
+    assert.deepEqual(a.y, b.y);
+  });
+
+  it('rejects zero scalars, oversized scalars and invalid points',
+    async () => {
+      await assert.rejects(
+        () => btcec.pointMultiply('00'.repeat(32)), /zero/,
+      );
+      await assert.rejects(
+        () => btcec.pointMultiply('01'.repeat(33)), /1 to 32 bytes/,
+      );
+      await assert.rejects(
+        () => btcec.pointMultiply('01', new Uint8Array(33)),
+        /invalid point/,
+      );
+    });
+});

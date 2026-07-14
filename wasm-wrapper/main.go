@@ -161,7 +161,19 @@ func main() {
 			"witnessSignature":          js.FuncOf(txscriptWitnessSignature),
 			"rawTxInTaprootSignature":   js.FuncOf(txscriptRawTxInTaprootSignature),
 		},
+		"block": map[string]any{
+			"decode":     js.FuncOf(blockDecode),
+			"merkleTree": js.FuncOf(blockMerkleTree),
+		},
+		"musig2": map[string]any{
+			"aggregateKeys":   js.FuncOf(musig2AggregateKeys),
+			"genNonces":       js.FuncOf(musig2GenNonces),
+			"aggregateNonces": js.FuncOf(musig2AggregateNonces),
+			"partialSign":     js.FuncOf(musig2PartialSign),
+			"combineSigs":     js.FuncOf(musig2CombineSigs),
+		},
 		"btcec": map[string]any{
+			"pointMultiply":          js.FuncOf(btcecPointMultiply),
 			"newPrivateKey":          js.FuncOf(btcecNewPrivateKey),
 			"privKeyFromBytes":       js.FuncOf(btcecPrivKeyFromBytes),
 			"pubKeyFromBytes":        js.FuncOf(btcecPubKeyFromBytes),

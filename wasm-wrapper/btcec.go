@@ -338,3 +338,55 @@ func btcecSchnorrParseSignature(_ js.Value, args []js.Value) any {
 	}
 	return okResult(bytesToJS(sig.Serialize()))
 }
+
+// btcecPointMultiply multiplies a point by a scalar: point omitted (or
+// null/empty) means the secp256k1 generator G. The scalar is interpreted as
+// a big-endian integer modulo the curve order. Returns the affine X and Y
+// coordinates plus the compressed encoding of the resulting point.
+// Calls Go: btcec.ScalarBaseMultNonConst() / btcec.ScalarMultNonConst().
+func btcecPointMultiply(_ js.Value, args []js.Value) any {
+	if e := checkArgs(args, 1, "scalar[, point]"); e != nil {
+		return e
+	}
+	scalarBytes, e := bytesFromArg(args[0])
+	if e != nil {
+		return e
+	}
+	if len(scalarBytes) == 0 || len(scalarBytes) > 32 {
+		return errResult("scalar must be 1 to 32 bytes")
+	}
+
+	var scalar btcec.ModNScalar
+	scalar.SetByteSlice(scalarBytes)
+	if scalar.IsZero() {
+		return errResult("scalar is zero modulo the curve order")
+	}
+
+	pointBytes, e := optBytesFromArg(args, 1)
+	if e != nil {
+		return e
+	}
+
+	var result btcec.JacobianPoint
+	if pointBytes == nil {
+		btcec.ScalarBaseMultNonConst(&scalar, &result)
+	} else {
+		pub, err := btcec.ParsePubKey(pointBytes)
+		if err != nil {
+			return errfResult("invalid point: %s", err)
+		}
+		var point btcec.JacobianPoint
+		pub.AsJacobian(&point)
+		btcec.ScalarMultNonConst(&scalar, &point, &result)
+	}
+	result.ToAffine()
+
+	pub := btcec.NewPublicKey(&result.X, &result.Y)
+	x := result.X.Bytes()
+	y := result.Y.Bytes()
+	return okResult(map[string]any{
+		"x":          bytesToJS(x[:]),
+		"y":          bytesToJS(y[:]),
+		"compressed": bytesToJS(pub.SerializeCompressed()),
+	})
+}

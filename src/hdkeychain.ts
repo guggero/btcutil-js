@@ -41,9 +41,9 @@ export const hdkeychain = {
 
   /** Convert a private extended key to its public counterpart.
    *  Calls Go: hdkeychain.ExtendedKey.Neuter() from btcutil/hdkeychain. */
-  async neuter(key: string): Promise<string> {
+  async neuter(key: string, targetPubVersion?: Bytes): Promise<string> {
     await init();
-    return unwrap<string>(g().hdkeychain.neuter(key));
+    return unwrap<string>(g().hdkeychain.neuter(key, targetPubVersion));
   },
 
   /** Generate a random seed of the given length in bytes (default: 32).

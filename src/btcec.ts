@@ -12,7 +12,31 @@ export interface RecoverCompactResult {
 }
 
 /** secp256k1 elliptic curve cryptography: key management, ECDSA, Schnorr, ECDH. */
+export interface PointMultiplyResult {
+  /** 32-byte big-endian affine X coordinate. */
+  x: Uint8Array;
+  /** 32-byte big-endian affine Y coordinate. */
+  y: Uint8Array;
+  /** 33-byte compressed encoding of the resulting point. */
+  compressed: Uint8Array;
+}
+
 export const btcec = {
+  /** Multiply a point by a scalar; `point` omitted means the secp256k1
+   *  generator G. The scalar is a big-endian integer taken modulo the
+   *  curve order (zero is rejected). Returns affine coordinates plus the
+   *  compressed encoding.
+   *  Calls Go: btcec.ScalarBaseMultNonConst() / ScalarMultNonConst(). */
+  async pointMultiply(
+    scalar: Bytes,
+    point?: Bytes,
+  ): Promise<PointMultiplyResult> {
+    await init();
+    return unwrap<PointMultiplyResult>(
+      g().btcec.pointMultiply(scalar, point),
+    );
+  },
+
   // -- key management --
 
   /** Generate a new random private key.

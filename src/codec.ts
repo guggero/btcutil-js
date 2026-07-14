@@ -8,6 +8,7 @@
  * encode accepts either form (`Bytes = string | Uint8Array`).
  */
 import type {
+  BlockDecodeResult,
   Bytes,
   TxData,
   TxDecodeResult,
@@ -102,6 +103,23 @@ export function txFromJson(j: any): TxDecodeResult {
     locktime: j.locktime,
     inputs: (j.inputs ?? []).map(txInputFromJson),
     outputs: (j.outputs ?? []).map(txOutputFromJson),
+  };
+}
+
+/** Convert a parsed-JSON block object to a `BlockDecodeResult`. */
+export function blockFromJson(j: any): BlockDecodeResult {
+  return {
+    hash: j.hash ?? '',
+    version: j.version,
+    prevBlock: j.prevBlock ?? '',
+    merkleRoot: j.merkleRoot ?? '',
+    timestamp: j.timestamp ?? 0,
+    bits: j.bits ?? 0,
+    nonce: j.nonce ?? 0,
+    size: j.size ?? 0,
+    legacySize: j.legacySize ?? 0,
+    weight: j.weight ?? 0,
+    transactions: (j.transactions ?? []).map(txFromJson),
   };
 }
 

@@ -139,3 +139,51 @@ describe('hdkeychain', () => {
     assert.equal(xpub, xpub2);
   });
 });
+
+describe('hdkeychain: neuter with target version', () => {
+  // BIP32 test vector 1 master key re-versioned to zprv, and the matching
+  // zpub as produced by btcd's CloneWithVersion + Neuter flow directly.
+  const testZprv =
+    'zprvAWgYBBk7JR8GjzqSzmunMCS7dAbwpYTCs1YUMDXqduMA5JFHZ3iX5s2UkAR6vBd' +
+    'cCYYa1S5o1fVLrKsrnpCQ4WpUd6aVUWP1bS2Yy5DoaKv';
+  const testZpub =
+    'zpub6jftahH18ngZxUuv6oSniLNrBCSSE1B4EEU59bwTCEt8x6aS6b2mdfLxbS4QS53' +
+    'g85SWWP6wexqeer516433gYpZQoJie2tcMYdJ1SYYYAL';
+
+  it('still neuters registered keys without a target version', async () => {
+    const seed = await hdkeychain.generateSeed();
+    const master = await hdkeychain.newMaster(seed);
+    const pub = await hdkeychain.neuter(master);
+    assert.ok(pub.startsWith('xpub'));
+  });
+
+  it('a zprv cannot be neutered without a target version', async () => {
+    await assert.rejects(() => hdkeychain.neuter(testZprv));
+  });
+
+  it('converts zprv to zpub with the target version', async () => {
+    const zpub = await hdkeychain.neuter(testZprv, '04b24746');
+    assert.equal(zpub, testZpub);
+  });
+
+  it('the retargeted public key matches the registered-path result',
+    async () => {
+      // Round-tripping the zpub through fromString must yield the same
+      // public key material as the xprv -> xpub path.
+      const zpubInfo = await hdkeychain.fromString(testZpub);
+      const xprv =
+        'xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPq' +
+        'jiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi';
+      const xpubInfo = await hdkeychain.fromString(
+        await hdkeychain.neuter(xprv),
+      );
+      assert.deepEqual(zpubInfo.publicKey, xpubInfo.publicKey);
+      assert.deepEqual(zpubInfo.chainCode, xpubInfo.chainCode);
+    });
+
+  it('rejects a malformed target version', async () => {
+    await assert.rejects(
+      () => hdkeychain.neuter(testZprv, 'aabb'), /4 bytes/,
+    );
+  });
+});
