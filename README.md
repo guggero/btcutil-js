@@ -7,8 +7,13 @@ compiled to WebAssembly. Works in both Node.js and browsers.
 Provides **base58**, **bech32**, **address** encoding/decoding, **amount**
 conversions, **Hash160**, **WIF**, **BIP-32 HD key** derivation, **BIP-69
 transaction sorting**, **BIP-174 PSBT** inspection, **BIP-322 message
-verification**, **BIP-158 GCS filters**, **Bloom filter** hashing, and raw
-**transaction** utilities.
+verification**, **BIP-158 GCS filters**, **Bloom filter** hashing, **Neutrino**
+scanning and raw **transaction** utilities.
+
+## Quick links
+
+- [Documentation (generated with `typedoc`)](https://guggero.github.io/btcutil-js/docs/)
+- [Examples](https://guggero.github.io/btcutil-js/examples/)
 
 ## Prerequisites
 
@@ -145,12 +150,17 @@ wallet that scans the chain via BIP-158 compact filters served by
 [See full API docs here, generated with `typedoc`](https://guggero.github.io/btcutil-js/docs/).
 
 The corresponding Go library this project wraps with WASM is documented here:
-- [btcd/btcec](https://pkg.go.dev/github.com/btcsuite/btcd/btcec/v2)
-- [btcd/btcutil](https://pkg.go.dev/github.com/btcsuite/btcd/btcutil)
-- [btcd/btcutil/psbt](https://pkg.go.dev/github.com/btcsuite/btcd/btcutil/psbt)
-- [btcd/chaincfg](https://pkg.go.dev/github.com/btcsuite/btcd@v0.25.0/chaincfg)
-- [btcd/chaincfg/chainash](https://pkg.go.dev/github.com/btcsuite/btcd/chaincfg/chainhash)
-- [btcd/txscript](https://pkg.go.dev/github.com/btcsuite/btcd@v0.25.0/txscript)
+- [btcd/btcec/v2](https://pkg.go.dev/github.com/btcsuite/btcd/btcec/v2)
+- [btcd/btcutil/v2](https://pkg.go.dev/github.com/btcsuite/btcd/btcutil/v2)
+- [btcd/chaincfg/v2](https://pkg.go.dev/github.com/btcsuite/btcd/chaincfg/v2)
+- [btcd/chainash/v2](https://pkg.go.dev/github.com/btcsuite/btcd/chainhash/v2)
+- [btcd/psbt/v2](https://pkg.go.dev/github.com/btcsuite/btcd/psbt/v2)
+- [btcd/txscript/v2](https://pkg.go.dev/github.com/btcsuite/btcd/txscript/v2)
+- [btcd/wire/v2](https://pkg.go.dev/github.com/btcsuite/btcd/wire/v2)
+
+And two packages from currently in-flight PRs:
+- [btcd/descriptors](https://github.com/btcsuite/btcd/pull/2568)
+- [btcd/bip322](https://github.com/btcsuite/btcd/pull/2521)
 
 All functions are **async** (they ensure the WASM module is loaded on first
 call) — see [Synchronous API](#synchronous-api) above for a sync alternative.
