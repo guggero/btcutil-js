@@ -142,7 +142,7 @@ wallet that scans the chain via BIP-158 compact filters served by
 
 ## API
 
-[See full API docs here, generated with `typedoc`](https://guggero.github.io/btcutil-js/).
+[See full API docs here, generated with `typedoc`](https://guggero.github.io/btcutil-js/docs/).
 
 The corresponding Go library this project wraps with WASM is documented here:
 - [btcd/btcec](https://pkg.go.dev/github.com/btcsuite/btcd/btcec/v2)
