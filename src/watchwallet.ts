@@ -1,10 +1,21 @@
-// The watch-only wallet orchestrator: BIP157/158 scanning over block-dn,
-// with all validation and matching done by btcutil-js WASM primitives
-// (neutrino namespace). Runs in the browser (OpfsStorage) and under Node
-// (NodeStorage) unchanged.
+/**
+ * A watch-only wallet engine doing BIP157/158 compact-filter scanning over
+ * a block-dn HTTP server: header sync with full local validation, batched
+ * parallel filter scanning (worker-pool matching where available), tip
+ * following with shallow-reorg handling, and UTXO lifecycle tracking.
+ *
+ * The engine is UI-agnostic: it drives a {@link WalletStorage} backend and
+ * reports progress through callbacks. The cryptography-toolkit "BIP-157:
+ * Compact Filters" page is the browser frontend; tools/neutrino-demo.mjs
+ * is a headless CLI driver.
+ */
 
-import { BlockDnClient } from './block-dn-client.mjs';
-import { MatchWorkerPool } from './worker-pool.mjs';
+import { init, type BtcutilSync } from './init';
+import { BlockDnClient, type BlockDnStatus } from './blockdn';
+import { MatchWorkerPool } from './matchpool';
+import type { WalletStorage, StorageStats } from './walletstore';
+import type { HeaderChain, WatchList, FilterMatch } from './neutrino';
+import type { Network } from './types';
 
 const HEADER_SIZE = 80;
 const FILTER_HEADER_SIZE = 32;
@@ -16,7 +27,7 @@ const TAPROOT_HEIGHT = 709_632;
 const P2SH_HEIGHT = 173_805;
 
 /** Guess a sensible scan start height from what is being watched. */
-export function birthdayHeuristic(network, value) {
+export function birthdayHeuristic(network: Network, value: string): number {
   if (network !== 'mainnet') {
     return 0;
   }
@@ -36,7 +47,7 @@ export function birthdayHeuristic(network, value) {
 }
 
 /** Display-order hex of a raw internal-order hash. */
-function reverseHex(bytes) {
+function reverseHex(bytes: Uint8Array): string {
   let s = '';
   for (let i = bytes.length - 1; i >= 0; i--) {
     s += bytes[i].toString(16).padStart(2, '0');
@@ -44,7 +55,7 @@ function reverseHex(bytes) {
   return s;
 }
 
-function toHex(bytes) {
+function toHex(bytes: Uint8Array): string {
   let s = '';
   for (let i = 0; i < bytes.length; i++) {
     s += bytes[i].toString(16).padStart(2, '0');
@@ -53,7 +64,7 @@ function toHex(bytes) {
 }
 
 /** Human-readable byte size for the scan stats line. */
-export function formatBytes(n) {
+export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   const units = ['KiB', 'MiB', 'GiB'];
   let value = n;
@@ -66,8 +77,17 @@ export function formatBytes(n) {
   return `${value.toFixed(1)} ${unit}`;
 }
 
+/** Statistics of one completed {@link WatchOnlyWallet.scan} run. */
+export interface ScanStats {
+  blocksScanned: number;
+  batches: number;
+  matchedBlocks: number;
+  seconds: number;
+  bytesDownloaded: number;
+}
+
 /** The "N blocks scanned with X batches in Y s" stats line. */
-export function formatScanStats(stats) {
+export function formatScanStats(stats: ScanStats): string {
   return `${stats.blocksScanned.toLocaleString()} blocks scanned with ` +
     `${stats.batches} batch${stats.batches === 1 ? '' : 'es'} in ` +
     `${stats.seconds.toFixed(1)} s (${stats.matchedBlocks} blocks ` +
@@ -77,8 +97,12 @@ export function formatScanStats(stats) {
 /** Map items through an async fn with at most `limit` in flight — parallel
  *  but polite: an unbounded Promise.all over hundreds of block fetches can
  *  overwhelm the origin server. Results keep the input order. */
-async function mapPool(items, limit, fn) {
-  const results = new Array(items.length);
+async function mapPool<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, i: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
   let next = 0;
   const workers = Array.from(
     { length: Math.min(limit, items.length) },
@@ -94,54 +118,115 @@ async function mapPool(items, limit, fn) {
   return results;
 }
 
-export class WatchOnlyWallet {
-  /**
-   * @param {object} opts
-   * @param {any} opts.lib       the btcutil-js sync API (await init())
-   * @param {string} opts.network
-   * @param {string} opts.serverUrl block-dn base URL
-   * @param {any} opts.storage   OpfsStorage or NodeStorage
-   * @param {number} [opts.batchSize] how many filter files (2000 blocks
-   *   each) are fetched and scanned in parallel per batch (1..16). Higher
-   *   values speed up scans at the cost of memory: each in-flight mainnet
-   *   filter file is up to ~50 MiB.
-   */
-  static async open({ lib, network, serverUrl, storage, batchSize }) {
-    const wallet = new WatchOnlyWallet();
-    wallet.lib = lib;
-    wallet.network = network;
-    wallet.client = new BlockDnClient(serverUrl);
-    wallet.storage = storage;
-    wallet.batchSize = Math.max(
-      1, Math.min(16, Math.floor(batchSize ?? 4)),
-    );
+/** One watched item (address or descriptor) with its derived scripts. */
+export interface WalletWatch {
+  kind: 'address' | 'descriptor';
+  value: string;
+  birthHeight: number;
+  scripts: string[];
+  addresses: string[];
+}
 
-    wallet.data = (await storage.getWallet()) ?? {
-      network,
+/** A tracked unspent output. */
+export interface WalletUtxo {
+  value: number;
+  height: number;
+  blockHash: string;
+  pkScript: string;
+  address: string;
+}
+
+/** The wallet summary returned by {@link WatchOnlyWallet.summary}. */
+export interface WalletSummary {
+  tipHeight: number;
+  scannedTo: number;
+  numWatches: number;
+  numUtxos: number;
+  balanceSats: number;
+  utxos: (WalletUtxo & { outpoint: string })[];
+}
+
+/** Options for {@link WatchOnlyWallet.open}. */
+export interface WatchOnlyWalletOptions {
+  network: Network;
+  /** block-dn base URL, e.g. `"https://block-dn.org"`. */
+  serverUrl: string;
+  storage: WalletStorage;
+  /** How many filter files (2000 blocks each) are fetched and scanned in
+   *  parallel per batch (1..16). Higher values speed up scans at the cost
+   *  of memory: each in-flight mainnet filter file is up to ~50 MiB.
+   *  Default 4. */
+  batchSize?: number;
+  /** Optional WASM source forwarded to `init()` (URL string). Also passed
+   *  to the match workers. */
+  wasmSource?: string;
+  /** Explicit URL of the match-worker script; see
+   *  {@link MatchPoolOptions.workerUrl}. */
+  workerUrl?: string | URL;
+}
+
+interface WalletData {
+  network: string;
+  watches: WalletWatch[];
+  utxos: Record<string, WalletUtxo>;
+  spent: Record<string, WalletUtxo & { spentBy: string; spentAt: number }>;
+  scannedTo: number;
+}
+
+export class WatchOnlyWallet {
+  lib!: BtcutilSync;
+  network!: Network;
+  client!: BlockDnClient;
+  storage!: WalletStorage;
+  batchSize!: number;
+  chain!: HeaderChain;
+  lastScanStats: ScanStats | null = null;
+
+  private data!: WalletData;
+  private wasmSource?: string;
+  private workerUrl?: string | URL;
+
+  /** Open (or create) a wallet on the given storage backend. */
+  static async open(opts: WatchOnlyWalletOptions): Promise<WatchOnlyWallet> {
+    const wallet = new WatchOnlyWallet();
+    wallet.lib = await init(opts.wasmSource);
+    wallet.network = opts.network;
+    wallet.client = new BlockDnClient(opts.serverUrl);
+    wallet.storage = opts.storage;
+    wallet.batchSize = Math.max(
+      1, Math.min(16, Math.floor(opts.batchSize ?? 4)),
+    );
+    wallet.wasmSource = opts.wasmSource;
+    wallet.workerUrl = opts.workerUrl;
+
+    wallet.data = (await opts.storage.getWallet()) ?? {
+      network: opts.network,
       watches: [],
       utxos: {},
       spent: {},
       scannedTo: -1,
     };
-    if (wallet.data.network !== network) {
+    if (wallet.data.network !== opts.network) {
       throw new Error(`storage holds ${wallet.data.network} data`);
     }
 
     // Resume the validated header chain from its compact exported state;
     // fall back to a fresh chain (and re-validation) if none is stored.
-    const state = await storage.getChainState();
-    wallet.chain = lib.neutrino.headerChain(network, state ?? undefined);
+    const state = await opts.storage.getChainState();
+    wallet.chain = wallet.lib.neutrino.headerChain(
+      opts.network, state ?? undefined,
+    );
 
     // The chain state and the flat files must agree; if they don't
     // (e.g. an interrupted sync), revalidate from the stored headers.
-    const stored = await storage.headerCount();
+    const stored = await opts.storage.headerCount();
     const tip = wallet.chain.tip().tipHeight;
     if (tip + 1 !== stored) {
       wallet.chain.free();
-      wallet.chain = lib.neutrino.headerChain(network);
+      wallet.chain = wallet.lib.neutrino.headerChain(opts.network);
       const batch = 50_000;
       for (let h = 0; h < stored; h += batch) {
-        const chunk = await storage.readHeaders(
+        const chunk = await opts.storage.readHeaders(
           h, Math.min(batch, stored - h),
         );
         wallet.chain.append(chunk);
@@ -151,14 +236,14 @@ export class WatchOnlyWallet {
     return wallet;
   }
 
-  // -- watches ------------------------------------------------------------
+  // -- watches --------------------------------------------------------------
 
   /** Watch a single address. */
-  async addAddress(address, birthHeight) {
+  async addAddress(address: string, birthHeight?: number): Promise<void> {
     const script = this.lib.txscript.payToAddrScript(
       address, this.network,
     );
-    await this.#addWatch({
+    await this.addWatch({
       kind: 'address',
       value: address,
       birthHeight: birthHeight ??
@@ -169,13 +254,17 @@ export class WatchOnlyWallet {
   }
 
   /** Watch an output descriptor, deriving `count` addresses per multipath.
-   *  (Fixed-range derivation — a production wallet would extend the gap on
-   *  finds and rescan.) */
-  async addDescriptor(descriptor, birthHeight, count = 100) {
+   *  (Fixed-range derivation — extending the gap on finds and rescanning
+   *  is the caller's concern for now.) */
+  async addDescriptor(
+    descriptor: string,
+    birthHeight?: number,
+    count = 100,
+  ): Promise<void> {
     const desc = this.lib.descriptors.create(descriptor);
     try {
-      const scripts = [];
-      const addresses = [];
+      const scripts: string[] = [];
+      const addresses: string[] = [];
       for (let mp = 0; mp < desc.multipathLen(); mp++) {
         for (let i = 0; i < count; i++) {
           const addr = desc.addressAt(this.network, mp, i);
@@ -185,7 +274,7 @@ export class WatchOnlyWallet {
           )));
         }
       }
-      await this.#addWatch({
+      await this.addWatch({
         kind: 'descriptor',
         value: desc.toString(),
         birthHeight: birthHeight ??
@@ -198,7 +287,7 @@ export class WatchOnlyWallet {
     }
   }
 
-  async #addWatch(watch) {
+  private async addWatch(watch: WalletWatch): Promise<void> {
     this.data.watches.push(watch);
 
     // New watches need their whole range scanned: pull the scan cursor
@@ -213,17 +302,24 @@ export class WatchOnlyWallet {
 
   /** Sync block headers and filter headers to the server tip, validating
    *  everything. onProgress(kind, height, target) is called per file. */
-  async syncHeaders(onProgress = () => {}) {
+  async syncHeaders(
+    onProgress: (
+      kind: 'headers' | 'filter-headers',
+      height: number,
+      target: number,
+    ) => void = () => {},
+  ): Promise<void> {
     const status = await this.client.status();
     const perFile = status.entries_per_header_file;
     const target = status.best_block_height;
 
-    // Block headers: fetch aligned files, validate, persist the raw bytes.
+    // Block headers: fetch aligned files, validate, persist the raw
+    // bytes.
     for (;;) {
       const tip = this.chain.tip().tipHeight;
       if (tip >= target) break;
 
-      const boundary = Math.floor(((tip + 1) / perFile)) * perFile;
+      const boundary = Math.floor((tip + 1) / perFile) * perFile;
       const file = await this.client.headers(boundary);
       const skip = (tip + 1 - boundary) * HEADER_SIZE;
       const fresh = file.subarray(skip);
@@ -237,13 +333,13 @@ export class WatchOnlyWallet {
 
     // Filter headers: same file alignment. There is no client-side
     // cryptographic link to the block headers; each downloaded *filter*
-    // is verified against this chain at scan time, which makes CDN/server
-    // corruption detectable.
+    // is verified against this chain at scan time, which makes
+    // CDN/server corruption detectable.
     for (;;) {
       const have = await this.storage.filterHeaderCount();
       if (have > target) break;
 
-      const boundary = Math.floor((have / perFile)) * perFile;
+      const boundary = Math.floor(have / perFile) * perFile;
       const file = await this.client.filterHeaders(boundary);
       const fresh = file.subarray((have - boundary) * FILTER_HEADER_SIZE);
       if (fresh.length === 0) break;
@@ -258,8 +354,9 @@ export class WatchOnlyWallet {
 
   // -- scanning -------------------------------------------------------------
 
-  /** The scan start height: the lowest unscanned birthday. */
-  scanStart() {
+  /** The scan start height: the lowest unscanned birthday, or null when
+   *  there is nothing to scan. */
+  scanStart(): number | null {
     const births = this.data.watches.map((w) => w.birthHeight);
     if (births.length === 0) return null;
     return Math.max(Math.min(...births), this.data.scannedTo + 1);
@@ -267,7 +364,7 @@ export class WatchOnlyWallet {
 
   /** Build the Go-side watch list from all watches plus known UTXOs (for
    *  spend detection). Caller must free() it. */
-  #buildWatchList() {
+  private buildWatchList(): WatchList {
     const scripts = this.data.watches.flatMap((w) => w.scripts);
     const watch = this.lib.neutrino.watchList(scripts);
     for (const key of Object.keys(this.data.utxos)) {
@@ -278,7 +375,12 @@ export class WatchOnlyWallet {
   }
 
   /** Apply one scanned block's finds to the wallet state. */
-  async #applyBlock(watch, height, blockHash, result) {
+  private async applyBlock(
+    watch: WatchList,
+    height: number,
+    blockHash: string,
+    result: { outputs: any[]; spends: any[] },
+  ): Promise<void> {
     for (const out of result.outputs) {
       const key = `${out.txid}:${out.vout}`;
       if (this.data.utxos[key] || this.data.spent[key]) continue;
@@ -288,7 +390,7 @@ export class WatchOnlyWallet {
         height,
         blockHash,
         pkScript: toHex(out.pkScript),
-        address: this.#addressForScript(out.pkScript),
+        address: this.addressForScript(out.pkScript),
       };
 
       // Watch the new UTXO so a later block's spend is detected.
@@ -308,9 +410,9 @@ export class WatchOnlyWallet {
     }
   }
 
-  #addressForScript(script) {
+  private addressForScript(script: Uint8Array): string {
+    const hex = toHex(script);
     for (const w of this.data.watches) {
-      const hex = toHex(script);
       const idx = w.scripts.indexOf(hex);
       if (idx >= 0) return w.addresses[idx];
     }
@@ -323,8 +425,13 @@ export class WatchOnlyWallet {
    *  fails its commitment check usually means a truncated/corrupted file
    *  (possibly cached by a CDN), so the file is refetched once with a
    *  cache-busting parameter before giving up. */
-  async #matchRange(pool, watch, { start, count }, from) {
-    const attempt = async (fresh) => {
+  private async matchRange(
+    pool: MatchWorkerPool | null,
+    watch: WatchList,
+    { start, count }: { start: number; count: number },
+    from: number,
+  ): Promise<FilterMatch[]> {
+    const attempt = async (fresh: boolean): Promise<FilterMatch[]> => {
       const [filterFile, headers, filterHeaders] = await Promise.all([
         this.client.filters(start, { fresh }),
         this.storage.readHeaders(start, count),
@@ -338,7 +445,8 @@ export class WatchOnlyWallet {
       // header chain and match against the watch list.
       const matches = pool
         ? await pool.match({
-          startHeight: start, filterFile, headers, filterHeaders, prev,
+          startHeight: start, filterFile, headers, filterHeaders,
+          prev,
         })
         : this.lib.neutrino.matchFilters(
           watch, start, filterFile, headers, filterHeaders, prev,
@@ -351,7 +459,7 @@ export class WatchOnlyWallet {
 
     try {
       return await attempt(false);
-    } catch (err) {
+    } catch (err: any) {
       if (!String(err?.message).includes('committed filter header')) {
         throw err;
       }
@@ -364,15 +472,20 @@ export class WatchOnlyWallet {
    *
    *  Filter files are processed in batches of `batchSize`: each file of a
    *  batch is downloaded and matched concurrently (matching runs on a pool
-   *  of worker threads, each with its own WASM instance), then the batch
-   *  completes as one unit (barrier) before the wallet state is persisted
-   *  and onProgress(height, target, foundCount) fires — once per batch.
+   *  of worker threads where available, each with its own WASM instance),
+   *  then the batch completes as one unit (barrier) before the wallet
+   *  state is persisted and onProgress(height, target, foundCount) fires —
+   *  once per batch.
    *
    *  Returns the wallet summary plus `stats` for the completed scan. */
-  async scan(onProgress = () => {}) {
+  async scan(
+    onProgress: (
+      height: number, target: number, foundCount: number,
+    ) => void = () => {},
+  ): Promise<WalletSummary & { stats: ScanStats }> {
     const from = this.scanStart();
     const tip = this.chain.tip().tipHeight;
-    const stats = {
+    const stats: ScanStats = {
       blocksScanned: 0,
       batches: 0,
       matchedBlocks: 0,
@@ -390,13 +503,15 @@ export class WatchOnlyWallet {
     const perFile = status.entries_per_filter_file;
     const batchSpan = perFile * this.batchSize;
 
-    const watch = this.#buildWatchList();
+    const watch = this.buildWatchList();
 
     // Real matching parallelism needs one WASM instance per thread; fall
     // back to inline matching if workers are unavailable (pool is null).
     const pool = this.batchSize > 1
       ? await MatchWorkerPool.create(
-        this.batchSize, this.data.watches.flatMap((w) => w.scripts),
+        this.batchSize,
+        this.data.watches.flatMap((w) => w.scripts),
+        { workerUrl: this.workerUrl, wasmUrl: this.wasmSource },
       )
       : null;
 
@@ -405,7 +520,7 @@ export class WatchOnlyWallet {
       for (let batch = firstFile; batch <= tip; batch += batchSpan) {
         // The file-aligned ranges of this batch (the last one may hold
         // fewer files, and its last file fewer entries).
-        const ranges = [];
+        const ranges: { start: number; count: number }[] = [];
         for (let i = 0; i < this.batchSize; i++) {
           const start = batch + i * perFile;
           if (start > tip) break;
@@ -415,10 +530,10 @@ export class WatchOnlyWallet {
         }
 
         // Download + match every range of the batch concurrently; the
-        // await is the batch barrier. Ranges (and thus matches) stay in
-        // ascending height order.
+        // await is the batch barrier. Ranges (and thus matches) stay
+        // in ascending height order.
         const matches = (await Promise.all(ranges.map(
-          (range) => this.#matchRange(pool, watch, range, from),
+          (range) => this.matchRange(pool, watch, range, from),
         ))).flat();
         stats.matchedBlocks += matches.length;
 
@@ -433,7 +548,7 @@ export class WatchOnlyWallet {
         );
         for (let i = 0; i < matches.length; i++) {
           const result = this.lib.neutrino.scanBlock(watch, blocks[i]);
-          await this.#applyBlock(
+          await this.applyBlock(
             watch, matches[i].height, matches[i].blockHash, result,
           );
         }
@@ -465,28 +580,27 @@ export class WatchOnlyWallet {
   // -- tip following ----------------------------------------------------------
 
   /** One tip poll: append new headers (handling shallow reorgs), then scan
-   *  any new blocks via single-filter fetches. Returns true if the tip
-   *  moved. */
-  async followTip() {
+   *  any new blocks. Returns true if the tip moved. */
+  async followTip(): Promise<boolean> {
     const status = await this.client.status();
-    let tip = this.chain.tip().tipHeight;
+    const tip = this.chain.tip().tipHeight;
     if (status.best_block_height <= tip &&
       status.best_block_hash === this.chain.tip().tipHash) {
 
       return false;
     }
 
-    // A shallow reorg shows up as a prev-hash mismatch when appending the
-    // new tail: roll back a few blocks and retry once.
+    // A shallow reorg shows up as a prev-hash mismatch when appending
+    // the new tail: roll back a few blocks and retry once.
     try {
-      await this.#appendTail(status);
-    } catch (err) {
+      await this.appendTail(status);
+    } catch {
       const back = Math.max(0, tip - 6);
       this.chain.rollback(back);
       await this.storage.truncateHeaders(back + 1);
       await this.storage.truncateFilterHeaders(back + 1);
       this.data.scannedTo = Math.min(this.data.scannedTo, back);
-      await this.#appendTail(status);
+      await this.appendTail(status);
     }
     await this.storage.setChainState(this.chain.exportState());
     await this.scan();
@@ -494,7 +608,7 @@ export class WatchOnlyWallet {
     return true;
   }
 
-  async #appendTail(status) {
+  private async appendTail(status: BlockDnStatus): Promise<void> {
     const perFile = status.entries_per_header_file;
     for (;;) {
       const tip = this.chain.tip().tipHeight;
@@ -506,7 +620,9 @@ export class WatchOnlyWallet {
         this.client.filterHeaders(boundary),
       ]);
 
-      const fresh = headerFile.subarray((tip + 1 - boundary) * HEADER_SIZE);
+      const fresh = headerFile.subarray(
+        (tip + 1 - boundary) * HEADER_SIZE,
+      );
       if (fresh.length === 0) break;
       this.chain.append(fresh);
       await this.storage.appendHeaders(fresh);
@@ -520,18 +636,13 @@ export class WatchOnlyWallet {
 
   // -- queries ---------------------------------------------------------------
 
-  utxos() {
+  utxos(): (WalletUtxo & { outpoint: string })[] {
     return Object.entries(this.data.utxos).map(([key, u]) => ({
       outpoint: key, ...u,
     }));
   }
 
-  /** Entry counts and byte sizes of the locally cached chain data. */
-  cacheStats() {
-    return this.storage.stats();
-  }
-
-  summary() {
+  summary(): WalletSummary {
     const utxos = this.utxos();
     return {
       tipHeight: this.chain.tip().tipHeight,
@@ -543,7 +654,12 @@ export class WatchOnlyWallet {
     };
   }
 
-  close() {
+  /** Entry counts and byte sizes of the locally cached chain data. */
+  cacheStats(): Promise<StorageStats> {
+    return this.storage.stats();
+  }
+
+  close(): void {
     this.chain.free();
   }
 }

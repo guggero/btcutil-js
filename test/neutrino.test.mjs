@@ -4,8 +4,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { init, neutrino, tx, HeaderChain, WatchList } from '../dist/index.js';
 
-// Real mainnet vectors, sliced from block-dn.org files (see the repo's
-// examples/neutrino README for how to regenerate them).
+// Real mainnet vectors, sliced from block-dn.org files: headers/filters/
+// filter-headers file ranges plus an exported chain state at height 30239
+// (so tests cross the first real retarget at 32256 without shipping all
+// preceding headers).
 const vector = (name) => readFileSync(
   new URL(`test-vectors/neutrino/${name}`, import.meta.url),
 );

@@ -1,19 +1,21 @@
 #!/usr/bin/env node
-// Headless demo of the watch-only wallet core, e.g.:
+// Headless dev/test driver for the watch-only wallet engine
+// (WatchOnlyWallet + NodeStorage + BlockDnClient), e.g.:
 //
-//   node examples/neutrino/node-demo.mjs \
+//   node tools/neutrino-demo.mjs \
 //     --network signet --server https://signet.block-dn.org \
 //     --watch 'tb1q...' --birthday 150000 --datadir /tmp/neutrino-demo
 //
-// The same wallet.mjs drives the browser page (index.html); this runner
-// exists so the whole pipeline can be exercised and tested without one.
+// This is not a second frontend — the user-facing wallet UI lives in
+// cryptography-toolkit (the "BIP-157: Compact Filters" page). This script
+// exists so the whole engine, including the Node storage backend and the
+// worker-pool matching path, can be exercised end-to-end without a browser.
 
 import { parseArgs } from 'node:util';
-import { loadBtcutil } from './lib-loader.mjs';
 import {
-  WatchOnlyWallet, birthdayHeuristic, formatScanStats, formatBytes,
-} from './wallet.mjs';
-import { NodeStorage } from './storage.mjs';
+  WatchOnlyWallet, NodeStorage, birthdayHeuristic, formatScanStats,
+  formatBytes,
+} from '../dist/index.js';
 
 const { values: args } = parseArgs({
   options: {
@@ -27,11 +29,8 @@ const { values: args } = parseArgs({
   },
 });
 
-const { init } = await loadBtcutil();
-const lib = await init();
 const storage = await NodeStorage.open(args.datadir);
 const wallet = await WatchOnlyWallet.open({
-  lib,
   network: args.network,
   serverUrl: args.server,
   storage,

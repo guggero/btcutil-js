@@ -13,7 +13,7 @@ scanning and raw **transaction** utilities.
 ## Quick links
 
 - [Documentation (generated with `typedoc`)](https://guggero.github.io/btcutil-js/docs/)
-- [Examples](https://guggero.github.io/btcutil-js/examples/)
+- [Examples](#examples)
 
 ## Prerequisites
 
@@ -138,12 +138,14 @@ installed conditionally by Go's standard `wasm_exec.js` only when missing.
 
 ## Examples
 
-Live example pages built on this library are listed at
-[examples/index.html](examples/index.html) (hosted at
-[guggero.github.io/btcutil-js/examples](https://guggero.github.io/btcutil-js/examples/)):
-BIP-322 message signing, a PSBT editor, and a browser-only watch-only
-wallet that scans the chain via BIP-158 compact filters served by
-[block-dn](https://github.com/guggero/block-dn).
+Live pages built on this library, all part of the
+[cryptography-toolkit](https://github.com/guggero/cryptography-toolkit):
+
+| Example | Built on | Source |
+|---------|----------|--------|
+| [BIP-322 message signing & verification](https://guggero.github.io/cryptography-toolkit/#!/bip322) | `bip322` | [pages/bip322](https://github.com/guggero/cryptography-toolkit/tree/master/pages/bip322) |
+| [PSBT editor](https://guggero.github.io/cryptography-toolkit/#!/psbt-editor) | `psbt` | [pages/psbt-editor](https://github.com/guggero/cryptography-toolkit/tree/master/pages/psbt-editor) |
+| [BIP-157: Compact Filters (watch-only wallet)](https://guggero.github.io/cryptography-toolkit/#!/bip157) | `WatchOnlyWallet`, `neutrino`, `descriptors` | [pages/bip157](https://github.com/guggero/cryptography-toolkit/tree/master/pages/bip157) |
 
 ## API
 
@@ -650,9 +652,14 @@ const { witness, scriptSig } = plan.satisfy({
 
 BIP157/158 light-client primitives ("neutrino over HTTP"): the validation
 and matching building blocks of a browser-based watch-only wallet. The
-fetching/persistence orchestration lives with the caller — see
-[examples/neutrino](examples/neutrino) for a complete wallet built on these
-plus [block-dn](https://github.com/guggero/block-dn) as the data source.
+library also ships the complete wallet engine built on them —
+`WatchOnlyWallet` (header sync, batched parallel scanning with worker-pool
+matching, tip following, UTXO tracking), `BlockDnClient` and the
+`OpfsStorage`/`NodeStorage` backends — with
+[block-dn](https://github.com/guggero/block-dn) as the data source. See the
+[BIP-157 toolkit page](https://guggero.github.io/cryptography-toolkit/#!/bip157)
+for the browser frontend and
+[tools/neutrino-demo.mjs](tools/neutrino-demo.mjs) for a headless CLI.
 
 Everything consensus- and CPU-critical runs in WASM: header validation
 follows btcd's `blockchain` rules (proof of work, difficulty retargets,

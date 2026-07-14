@@ -246,8 +246,8 @@ export function scanBlockSync(
 /** BIP157/158 light-client primitives ("neutrino over HTTP").
  *
  *  These are the validation and matching building blocks of a browser-based
- *  watch-only wallet; the fetching/persistence orchestration lives with the
- *  caller (see examples/neutrino):
+ *  watch-only wallet; the fetching/persistence orchestration is provided by
+ *  the WatchOnlyWallet engine (watchwallet.ts) built on top of these:
  *
  *  ```ts
  *  const chain = await neutrino.headerChain('mainnet');

@@ -46,4 +46,23 @@ export type {
   ScanSpend,
   ScanBlockResult,
 } from './neutrino';
+export { BlockDnClient } from './blockdn';
+export type { BlockDnStatus, BlockDnFetchOptions } from './blockdn';
+export { OpfsStorage, NodeStorage } from './walletstore';
+export type { WalletStorage, StorageStats } from './walletstore';
+export { MatchWorkerPool } from './matchpool';
+export type { MatchPoolOptions, MatchTask } from './matchpool';
+export {
+  WatchOnlyWallet,
+  birthdayHeuristic,
+  formatBytes,
+  formatScanStats,
+} from './watchwallet';
+export type {
+  WatchOnlyWalletOptions,
+  WalletWatch,
+  WalletUtxo,
+  WalletSummary,
+  ScanStats,
+} from './watchwallet';
 
