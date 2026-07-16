@@ -5,6 +5,14 @@
  * plus a mutable in-memory tail; see the block-dn docs for the formats.
  */
 
+import type { FilterType } from './types';
+
+// Path segment for a filter flavour: the basic filter lives at the original
+// un-typed endpoints, custom filters under /type/{filterType}/.
+function typeSegment(filterType: FilterType): string {
+  return filterType === 'basic' ? '' : `type/${filterType}/`;
+}
+
 /** The /status response of a block-dn server. */
 export interface BlockDnStatus {
   chain_genesis_hash: string;
@@ -16,6 +24,9 @@ export interface BlockDnStatus {
   entries_per_header_file: number;
   entries_per_filter_file: number;
   all_files_synced: boolean;
+  /** Whether the server also maintains the output-type-restricted custom
+   *  filters (p2wpkh/p2wsh/p2tr/segwit). Absent on older servers. */
+  custom_filters_available?: boolean;
 }
 
 /** Options for a single fetch. */
@@ -27,6 +38,8 @@ export interface BlockDnFetchOptions {
    *  truncated/corrupted (detected via the filter-header commitment
    *  check). */
   fresh?: boolean;
+  /** Which filter flavour to fetch. Default `'basic'`. */
+  filterType?: FilterType;
 }
 
 export class BlockDnClient {
@@ -96,8 +109,13 @@ export class BlockDnClient {
   }
 
   /** Raw 32-byte filter headers, same range semantics as headers(). */
-  filterHeaders(startHeight: number): Promise<Uint8Array> {
-    return this.fetchBinary(`/filter-headers/${startHeight}`);
+  filterHeaders(
+    startHeight: number,
+    filterType: FilterType = 'basic',
+  ): Promise<Uint8Array> {
+    return this.fetchBinary(
+      `/filter-headers/${typeSegment(filterType)}${startHeight}`,
+    );
   }
 
   /** One var-int prefixed filter file (or the in-memory tail). */
@@ -105,10 +123,15 @@ export class BlockDnClient {
     startHeight: number,
     opts?: BlockDnFetchOptions,
   ): Promise<Uint8Array> {
-    return this.fetchBinary(`/filters/${startHeight}`, opts);
+    return this.fetchBinary(
+      `/filters/${typeSegment(opts?.filterType ?? 'basic')}${startHeight}`,
+      opts,
+    );
   }
 
-  /** The raw filter of a single block (tip following). */
+  /** The raw filter of a single block (tip following). Basic filters
+   *  only — block-dn does not define a single-filter endpoint for the
+   *  custom flavours. */
   filterSingle(height: number): Promise<Uint8Array> {
     return this.fetchBinary(`/filters/single/${height}`);
   }

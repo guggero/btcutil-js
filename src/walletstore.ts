@@ -10,16 +10,31 @@
  * backends only need to satisfy the interface.
  */
 
+import type { FilterType } from './types';
+
 const HEADER_SIZE = 80;
 const FILTER_HEADER_SIZE = 32;
+
+/** Every filter flavour a store can hold a header chain for. */
+export const FILTER_TYPES: FilterType[] = [
+  'basic', 'p2wpkh', 'p2wsh', 'p2tr', 'segwit',
+];
+
+// Each filter flavour has its own header commitment chain; the basic one
+// keeps its original file name so existing caches stay valid.
+function filterHeaderFile(filterType: FilterType = 'basic'): string {
+  return filterType === 'basic'
+    ? 'filter-headers.bin'
+    : `filter-headers-${filterType}.bin`;
+}
 
 // Every file a wallet store consists of; used by stats() and clear().
 const STORE_FILES = [
   'headers.bin',
-  'filter-headers.bin',
+  ...FILTER_TYPES.map((t) => filterHeaderFile(t)),
   'chain-state.bin',
   'wallet.json',
-] as const;
+];
 
 /** Entry counts and byte sizes of a wallet store. */
 export interface StorageStats {
@@ -32,17 +47,28 @@ export interface StorageStats {
   totalBytes: number;
 }
 
-/** The persistence interface the wallet engine drives. */
+/** The persistence interface the wallet engine drives.
+ *
+ *  The filter-header methods take an optional {@link FilterType}; each
+ *  flavour is an independent chain and all of them may be cached at the
+ *  same time. Implementations ignoring the parameter only support the
+ *  basic flavour. */
 export interface WalletStorage {
   headerCount(): Promise<number>;
   appendHeaders(bytes: Uint8Array): Promise<void>;
   readHeaders(height: number, count: number): Promise<Uint8Array>;
   truncateHeaders(count: number): Promise<void>;
 
-  filterHeaderCount(): Promise<number>;
-  appendFilterHeaders(bytes: Uint8Array): Promise<void>;
-  readFilterHeaders(height: number, count: number): Promise<Uint8Array>;
-  truncateFilterHeaders(count: number): Promise<void>;
+  filterHeaderCount(filterType?: FilterType): Promise<number>;
+  appendFilterHeaders(
+    bytes: Uint8Array, filterType?: FilterType,
+  ): Promise<void>;
+  readFilterHeaders(
+    height: number, count: number, filterType?: FilterType,
+  ): Promise<Uint8Array>;
+  truncateFilterHeaders(
+    count: number, filterType?: FilterType,
+  ): Promise<void>;
 
   getChainState(): Promise<Uint8Array | null>;
   setChainState(bytes: Uint8Array): Promise<void>;
@@ -55,14 +81,22 @@ export interface WalletStorage {
 }
 
 // buildStats assembles the stats() result from a name→bytes size lookup.
+// filterHeadersBytes sums every cached flavour's chain; filterHeaderCount
+// reports the longest one (the sync progress of whichever chain is used).
 async function buildStats(
   sizeOf: (name: string) => Promise<number>,
 ): Promise<StorageStats> {
-  const [headersBytes, filterHeadersBytes, stateBytes, walletBytes] =
-    await Promise.all(STORE_FILES.map(sizeOf));
+  const [headersBytes, stateBytes, walletBytes] = await Promise.all(
+    ['headers.bin', 'chain-state.bin', 'wallet.json'].map(sizeOf),
+  );
+  const filterSizes = await Promise.all(
+    FILTER_TYPES.map((t) => sizeOf(filterHeaderFile(t))),
+  );
+  const filterHeadersBytes = filterSizes.reduce((s, n) => s + n, 0);
+  const longestChain = Math.max(...filterSizes);
   return {
     headerCount: Math.floor(headersBytes / HEADER_SIZE),
-    filterHeaderCount: Math.floor(filterHeadersBytes / FILTER_HEADER_SIZE),
+    filterHeaderCount: Math.floor(longestChain / FILTER_HEADER_SIZE),
     headersBytes,
     filterHeadersBytes,
     stateBytes,
@@ -144,19 +178,21 @@ export class OpfsStorage implements WalletStorage {
   truncateHeaders = (count: number) =>
     this.truncate('headers.bin', count * HEADER_SIZE);
 
-  async filterHeaderCount(): Promise<number> {
+  async filterHeaderCount(filterType?: FilterType): Promise<number> {
     return Math.floor(
-      await this.size('filter-headers.bin') / FILTER_HEADER_SIZE,
+      await this.size(filterHeaderFile(filterType)) / FILTER_HEADER_SIZE,
     );
   }
-  appendFilterHeaders = (bytes: Uint8Array) =>
-    this.append('filter-headers.bin', bytes);
-  readFilterHeaders = (height: number, count: number) => this.readSlice(
-    'filter-headers.bin', height * FILTER_HEADER_SIZE,
+  appendFilterHeaders = (bytes: Uint8Array, filterType?: FilterType) =>
+    this.append(filterHeaderFile(filterType), bytes);
+  readFilterHeaders = (
+    height: number, count: number, filterType?: FilterType,
+  ) => this.readSlice(
+    filterHeaderFile(filterType), height * FILTER_HEADER_SIZE,
     count * FILTER_HEADER_SIZE,
   );
-  truncateFilterHeaders = (count: number) =>
-    this.truncate('filter-headers.bin', count * FILTER_HEADER_SIZE);
+  truncateFilterHeaders = (count: number, filterType?: FilterType) =>
+    this.truncate(filterHeaderFile(filterType), count * FILTER_HEADER_SIZE);
 
   async getChainState(): Promise<Uint8Array | null> {
     const bytes = await this.readAll('chain-state.bin');
@@ -243,20 +279,23 @@ export class NodeStorage implements WalletStorage {
   truncateHeaders = (count: number) =>
     this.fs.truncate(this.path('headers.bin'), count * HEADER_SIZE);
 
-  async filterHeaderCount(): Promise<number> {
+  async filterHeaderCount(filterType?: FilterType): Promise<number> {
     return Math.floor(
-      await this.size('filter-headers.bin') / FILTER_HEADER_SIZE,
+      await this.size(filterHeaderFile(filterType)) / FILTER_HEADER_SIZE,
     );
   }
-  appendFilterHeaders = (bytes: Uint8Array) =>
-    this.fs.appendFile(this.path('filter-headers.bin'), bytes);
-  readFilterHeaders = (height: number, count: number) => this.readSlice(
-    'filter-headers.bin', height * FILTER_HEADER_SIZE,
+  appendFilterHeaders = (bytes: Uint8Array, filterType?: FilterType) =>
+    this.fs.appendFile(this.path(filterHeaderFile(filterType)), bytes);
+  readFilterHeaders = (
+    height: number, count: number, filterType?: FilterType,
+  ) => this.readSlice(
+    filterHeaderFile(filterType), height * FILTER_HEADER_SIZE,
     count * FILTER_HEADER_SIZE,
   );
-  truncateFilterHeaders = (count: number) =>
+  truncateFilterHeaders = (count: number, filterType?: FilterType) =>
     this.fs.truncate(
-      this.path('filter-headers.bin'), count * FILTER_HEADER_SIZE,
+      this.path(filterHeaderFile(filterType)),
+      count * FILTER_HEADER_SIZE,
     );
 
   async getChainState(): Promise<Uint8Array | null> {

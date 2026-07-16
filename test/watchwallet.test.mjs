@@ -7,6 +7,8 @@ import {
   birthdayHeuristic,
   formatBytes,
   formatScanStats,
+  scriptFilterType,
+  selectFilterType,
   NodeStorage,
   BlockDnClient,
 } from '../dist/index.js';
@@ -54,11 +56,12 @@ describe('watchwallet: formatting', () => {
       matchedBlocks: 42,
       seconds: 37.04,
       bytesDownloaded: 941_359_104,
+      filterType: 'p2tr',
     });
     assert.equal(
       line,
       '13,129 blocks scanned with 2 batches in 37.0 s ' +
-        '(42 blocks matched, 897.8 MiB downloaded)',
+        '(42 blocks matched, 897.8 MiB downloaded, p2tr filters)',
     );
   });
 });
@@ -116,5 +119,118 @@ describe('watchwallet: BlockDnClient', () => {
     const client = new BlockDnClient('https://example.org///');
     assert.equal(client.baseUrl, 'https://example.org');
     assert.equal(client.bytesFetched, 0);
+  });
+});
+
+describe('watchwallet: filter-type selection', () => {
+  const P2WPKH = '0014' + '11'.repeat(20);
+  const P2WSH = '0020' + '22'.repeat(32);
+  const P2TR = '5120' + '33'.repeat(32);
+  const P2PKH = '76a914' + '44'.repeat(20) + '88ac';
+  const P2SH = 'a914' + '55'.repeat(20) + '87';
+
+  it('classifies single scripts', () => {
+    assert.equal(scriptFilterType(P2WPKH), 'p2wpkh');
+    assert.equal(scriptFilterType(P2WSH), 'p2wsh');
+    assert.equal(scriptFilterType(P2TR), 'p2tr');
+    assert.equal(scriptFilterType(P2PKH), null);
+    assert.equal(scriptFilterType(P2SH), null);
+    // OP_1 <32> is p2tr, but OP_0 with a non-standard length is not a
+    // witness v0 program we know.
+    assert.equal(scriptFilterType('0015' + '66'.repeat(21)), null);
+  });
+
+  const cases = [
+    // Homogeneous native segwit -> the narrowest flavour.
+    [[P2TR], true, 'p2tr'],
+    [[P2WPKH, P2WPKH], true, 'p2wpkh'],
+    [[P2WSH], true, 'p2wsh'],
+    // Mixed native segwit -> the combined segwit flavour.
+    [[P2WPKH, P2TR], true, 'segwit'],
+    [[P2WPKH, P2WSH, P2TR], true, 'segwit'],
+    // Anything legacy/nested in the mix -> full basic filters.
+    [[P2WPKH, P2PKH], true, 'basic'],
+    [[P2SH], true, 'basic'],
+    // No custom filters on the server -> always basic.
+    [[P2TR], false, 'basic'],
+    // Nothing watched -> basic (nothing narrower to pick).
+    [[], true, 'basic'],
+  ];
+  for (const [scripts, available, expected] of cases) {
+    it(`${scripts.length} scripts, custom=${available} -> ${expected}`,
+      () => {
+        assert.equal(selectFilterType(scripts, available), expected);
+      });
+  }
+});
+
+describe('watchwallet: multi-chain filter-header storage', () => {
+  it('chains of different flavours coexist independently', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'btcutil-store-'));
+    const storage = await NodeStorage.open(dir);
+
+    // Basic (default) and two custom chains, all different lengths.
+    await storage.appendFilterHeaders(new Uint8Array(32).fill(1));
+    await storage.appendFilterHeaders(new Uint8Array(64).fill(2), 'p2tr');
+    await storage.appendFilterHeaders(new Uint8Array(96).fill(3), 'segwit');
+
+    assert.equal(await storage.filterHeaderCount(), 1);
+    assert.equal(await storage.filterHeaderCount('basic'), 1);
+    assert.equal(await storage.filterHeaderCount('p2tr'), 2);
+    assert.equal(await storage.filterHeaderCount('segwit'), 3);
+    assert.equal(await storage.filterHeaderCount('p2wpkh'), 0);
+
+    // Reads and truncates stay within their flavour.
+    const p2tr = await storage.readFilterHeaders(1, 1, 'p2tr');
+    assert.equal(p2tr[0], 2);
+    await storage.truncateFilterHeaders(1, 'segwit');
+    assert.equal(await storage.filterHeaderCount('segwit'), 1);
+    assert.equal(await storage.filterHeaderCount('p2tr'), 2);
+
+    // Stats aggregate all chains; count reports the longest.
+    const stats = await storage.stats();
+    assert.equal(stats.filterHeadersBytes, 32 + 64 + 32);
+    assert.equal(stats.filterHeaderCount, 2);
+
+    // clear() removes every flavour.
+    await storage.clear();
+    assert.equal(await storage.filterHeaderCount('p2tr'), 0);
+    assert.equal((await storage.stats()).totalBytes, 0);
+  });
+});
+
+describe('watchwallet: typed filter endpoints', () => {
+  it('builds the /type/ URLs for custom flavours only', async () => {
+    const urls = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      urls.push(String(url));
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        arrayBuffer: async () => new ArrayBuffer(0),
+      };
+    };
+    try {
+      const client = new BlockDnClient('https://example.org');
+      await client.filterHeaders(2000);
+      await client.filterHeaders(2000, 'basic');
+      await client.filterHeaders(2000, 'p2tr');
+      await client.filters(4000);
+      await client.filters(4000, { filterType: 'segwit' });
+      await client.filters(4000, { fresh: true, filterType: 'p2wpkh' });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    assert.equal(urls[0], 'https://example.org/filter-headers/2000');
+    assert.equal(urls[1], 'https://example.org/filter-headers/2000');
+    assert.equal(urls[2], 'https://example.org/filter-headers/type/p2tr/2000');
+    assert.equal(urls[3], 'https://example.org/filters/4000');
+    assert.equal(urls[4], 'https://example.org/filters/type/segwit/4000');
+    assert.match(
+      urls[5],
+      /^https:\/\/example\.org\/filters\/type\/p2wpkh\/4000\?fresh=/,
+    );
   });
 });

@@ -13,9 +13,10 @@
 import { init, type BtcutilSync } from './init';
 import { BlockDnClient, type BlockDnStatus } from './blockdn';
 import { MatchWorkerPool } from './matchpool';
+import { FILTER_TYPES } from './walletstore';
 import type { WalletStorage, StorageStats } from './walletstore';
 import type { HeaderChain, WatchList, FilterMatch } from './neutrino';
-import type { Network } from './types';
+import type { FilterType, Network } from './types';
 
 const HEADER_SIZE = 80;
 const FILTER_HEADER_SIZE = 32;
@@ -44,6 +45,45 @@ export function birthdayHeuristic(network: Network, value: string): number {
   if (/^bc1/i.test(v)) return SEGWIT_HEIGHT;
   if (/^3/.test(v)) return P2SH_HEIGHT;
   return 0;
+}
+
+/** The custom-filter flavour a single output script belongs to, or null
+ *  for anything outside the fully-native segwit set (legacy, nested
+ *  segwit, non-standard). */
+export function scriptFilterType(
+  scriptHex: string,
+): 'p2wpkh' | 'p2wsh' | 'p2tr' | null {
+  if (/^0014[0-9a-f]{40}$/i.test(scriptHex)) return 'p2wpkh';
+  if (/^0020[0-9a-f]{64}$/i.test(scriptHex)) return 'p2wsh';
+  if (/^5120[0-9a-f]{64}$/i.test(scriptHex)) return 'p2tr';
+  return null;
+}
+
+/** The smallest filter flavour covering all given output scripts: the
+ *  single native-segwit type when the scripts are homogeneous, `segwit`
+ *  for a native-segwit mixture, and the full `basic` filter as soon as any
+ *  non-native-segwit script is watched (or when the server offers no
+ *  custom filters). Spends of found UTXOs stay detectable because a
+ *  watched UTXO always pays a watched script, so its spend appears in the
+ *  same flavour's filter. */
+export function selectFilterType(
+  scriptsHex: string[],
+  customFiltersAvailable: boolean,
+): FilterType {
+  if (!customFiltersAvailable || scriptsHex.length === 0) {
+    return 'basic';
+  }
+  const types = new Set<string>();
+  for (const script of scriptsHex) {
+    const t = scriptFilterType(script);
+    if (t === null) {
+      return 'basic';
+    }
+    types.add(t);
+  }
+  return types.size === 1
+    ? (types.values().next().value as FilterType)
+    : 'segwit';
 }
 
 /** Display-order hex of a raw internal-order hash. */
@@ -84,6 +124,8 @@ export interface ScanStats {
   matchedBlocks: number;
   seconds: number;
   bytesDownloaded: number;
+  /** The filter flavour the scan used. */
+  filterType: FilterType;
 }
 
 /** The "N blocks scanned with X batches in Y s" stats line. */
@@ -91,7 +133,8 @@ export function formatScanStats(stats: ScanStats): string {
   return `${stats.blocksScanned.toLocaleString()} blocks scanned with ` +
     `${stats.batches} batch${stats.batches === 1 ? '' : 'es'} in ` +
     `${stats.seconds.toFixed(1)} s (${stats.matchedBlocks} blocks ` +
-    `matched, ${formatBytes(stats.bytesDownloaded)} downloaded)`;
+    `matched, ${formatBytes(stats.bytesDownloaded)} downloaded, ` +
+    `${stats.filterType} filters)`;
 }
 
 /** Map items through an async fn with at most `limit` in flight — parallel
@@ -181,6 +224,9 @@ export class WatchOnlyWallet {
   batchSize!: number;
   chain!: HeaderChain;
   lastScanStats: ScanStats | null = null;
+  /** The filter flavour selected for the current watch set; refreshed by
+   *  syncHeaders()/scan(). */
+  filterType: FilterType = 'basic';
 
   private data!: WalletData;
   private wasmSource?: string;
@@ -331,23 +377,51 @@ export class WatchOnlyWallet {
     }
     await this.storage.setChainState(this.chain.exportState());
 
-    // Filter headers: same file alignment. There is no client-side
-    // cryptographic link to the block headers; each downloaded *filter*
-    // is verified against this chain at scan time, which makes
-    // CDN/server corruption detectable.
+    await this.syncFilterHeaders(status, onProgress);
+  }
+
+  /** The smallest filter flavour covering the current watch set (given
+   *  what the server offers). */
+  private selectType(status: BlockDnStatus): FilterType {
+    this.filterType = selectFilterType(
+      this.data.watches.flatMap((w) => w.scripts),
+      status.custom_filters_available === true,
+    );
+    return this.filterType;
+  }
+
+  /** Sync the selected flavour's filter-header chain to the tip. Chains of
+   *  other flavours already in the store are left untouched — they coexist
+   *  and stay valid for later scans with a different watch set.
+   *
+   *  There is no client-side cryptographic link to the block headers; each
+   *  downloaded *filter* is verified against this chain at scan time,
+   *  which makes CDN/server corruption detectable. */
+  private async syncFilterHeaders(
+    status: BlockDnStatus,
+    onProgress: (
+      kind: 'headers' | 'filter-headers',
+      height: number,
+      target: number,
+    ) => void = () => {},
+  ): Promise<void> {
+    const filterType = this.selectType(status);
+    const perFile = status.entries_per_header_file;
+    const target = status.best_block_height;
+
     for (;;) {
-      const have = await this.storage.filterHeaderCount();
+      const have = await this.storage.filterHeaderCount(filterType);
       if (have > target) break;
 
       const boundary = Math.floor(have / perFile) * perFile;
-      const file = await this.client.filterHeaders(boundary);
+      const file = await this.client.filterHeaders(boundary, filterType);
       const fresh = file.subarray((have - boundary) * FILTER_HEADER_SIZE);
       if (fresh.length === 0) break;
 
-      await this.storage.appendFilterHeaders(fresh);
+      await this.storage.appendFilterHeaders(fresh, filterType);
       onProgress(
         'filter-headers',
-        await this.storage.filterHeaderCount() - 1, target,
+        await this.storage.filterHeaderCount(filterType) - 1, target,
       );
     }
   }
@@ -430,15 +504,16 @@ export class WatchOnlyWallet {
     watch: WatchList,
     { start, count }: { start: number; count: number },
     from: number,
+    filterType: FilterType,
   ): Promise<FilterMatch[]> {
     const attempt = async (fresh: boolean): Promise<FilterMatch[]> => {
       const [filterFile, headers, filterHeaders] = await Promise.all([
-        this.client.filters(start, { fresh }),
+        this.client.filters(start, { fresh, filterType }),
         this.storage.readHeaders(start, count),
-        this.storage.readFilterHeaders(start, count),
+        this.storage.readFilterHeaders(start, count, filterType),
       ]);
       const prev = start === 0 ? '' : reverseHex(
-        await this.storage.readFilterHeaders(start - 1, 1),
+        await this.storage.readFilterHeaders(start - 1, 1, filterType),
       );
 
       // One pass: verify every filter against the committed filter
@@ -491,6 +566,7 @@ export class WatchOnlyWallet {
       matchedBlocks: 0,
       seconds: 0,
       bytesDownloaded: 0,
+      filterType: this.filterType,
     };
     if (from === null || from > tip) {
       this.lastScanStats = stats;
@@ -502,6 +578,14 @@ export class WatchOnlyWallet {
     const status = await this.client.status();
     const perFile = status.entries_per_filter_file;
     const batchSpan = perFile * this.batchSize;
+
+    // The watch set may have changed since the last header sync (a new
+    // legacy watch can demote a segwit-only selection to basic): re-select
+    // and make sure the flavour's header chain is complete. A no-op when
+    // syncHeaders() already brought it to the tip.
+    const filterType = this.selectType(status);
+    stats.filterType = filterType;
+    await this.syncFilterHeaders(status);
 
     const watch = this.buildWatchList();
 
@@ -533,7 +617,7 @@ export class WatchOnlyWallet {
         // await is the batch barrier. Ranges (and thus matches) stay
         // in ascending height order.
         const matches = (await Promise.all(ranges.map(
-          (range) => this.matchRange(pool, watch, range, from),
+          (range) => this.matchRange(pool, watch, range, from, filterType),
         ))).flat();
         stats.matchedBlocks += matches.length;
 
@@ -598,7 +682,12 @@ export class WatchOnlyWallet {
       const back = Math.max(0, tip - 6);
       this.chain.rollback(back);
       await this.storage.truncateHeaders(back + 1);
-      await this.storage.truncateFilterHeaders(back + 1);
+      // Every cached flavour chain commits to the reorged-away blocks.
+      for (const t of FILTER_TYPES) {
+        if (await this.storage.filterHeaderCount(t) > back + 1) {
+          await this.storage.truncateFilterHeaders(back + 1, t);
+        }
+      }
       this.data.scannedTo = Math.min(this.data.scannedTo, back);
       await this.appendTail(status);
     }
@@ -610,6 +699,7 @@ export class WatchOnlyWallet {
 
   private async appendTail(status: BlockDnStatus): Promise<void> {
     const perFile = status.entries_per_header_file;
+    const filterType = this.selectType(status);
     for (;;) {
       const tip = this.chain.tip().tipHeight;
       if (tip >= status.best_block_height) break;
@@ -617,7 +707,7 @@ export class WatchOnlyWallet {
       const boundary = Math.floor((tip + 1) / perFile) * perFile;
       const [headerFile, fheaderFile] = await Promise.all([
         this.client.headers(boundary),
-        this.client.filterHeaders(boundary),
+        this.client.filterHeaders(boundary, filterType),
       ]);
 
       const fresh = headerFile.subarray(
@@ -627,9 +717,10 @@ export class WatchOnlyWallet {
       this.chain.append(fresh);
       await this.storage.appendHeaders(fresh);
 
-      const have = await this.storage.filterHeaderCount();
+      const have = await this.storage.filterHeaderCount(filterType);
       await this.storage.appendFilterHeaders(
         fheaderFile.subarray((have - boundary) * FILTER_HEADER_SIZE),
+        filterType,
       );
     }
   }

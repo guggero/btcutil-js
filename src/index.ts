@@ -59,7 +59,7 @@ export type {
 } from './neutrino';
 export { BlockDnClient } from './blockdn';
 export type { BlockDnStatus, BlockDnFetchOptions } from './blockdn';
-export { OpfsStorage, NodeStorage } from './walletstore';
+export { OpfsStorage, NodeStorage, FILTER_TYPES } from './walletstore';
 export type { WalletStorage, StorageStats } from './walletstore';
 export { MatchWorkerPool } from './matchpool';
 export type { MatchPoolOptions, MatchTask } from './matchpool';
@@ -68,6 +68,8 @@ export {
   birthdayHeuristic,
   formatBytes,
   formatScanStats,
+  scriptFilterType,
+  selectFilterType,
 } from './watchwallet';
 export type {
   WatchOnlyWalletOptions,

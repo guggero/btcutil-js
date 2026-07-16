@@ -353,3 +353,9 @@ export interface SatisfyResult {
   witness: Uint8Array[];
   scriptSig: Uint8Array;
 }
+
+/** A block-dn compact-filter flavour: the full BIP-158 `basic` filter, or
+ *  one of the output-type-restricted custom filters some servers provide
+ *  (`segwit` = p2wpkh + p2wsh + p2tr combined). Each flavour has its own
+ *  filter-header commitment chain. */
+export type FilterType = 'basic' | 'p2wpkh' | 'p2wsh' | 'p2tr' | 'segwit';
