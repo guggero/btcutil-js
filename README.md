@@ -7,9 +7,9 @@ compiled to WebAssembly. Works in both Node.js and browsers.
 Provides **base58**, **bech32**, **address** encoding/decoding, **amount**
 conversions, **Hash160**, **WIF**, **BIP-32 HD key** derivation, **BIP-69
 transaction sorting**, **BIP-174 PSBT** inspection, **BIP-322 message
-verification**, **BIP-327 MuSig2** signing, **BIP-158 GCS filters**, **Bloom
-filter** hashing, **Neutrino** scanning, raw **transaction** and full
-**block** utilities.
+verification**, **BIP-327 MuSig2** signing, **BIP-352 Silent Payments** scanning,
+**BIP-158 GCS filters**, **Bloom filter** hashing, **Neutrino** scanning,
+raw **transaction** and full **block** utilities.
 
 ## Quick links
 
@@ -147,6 +147,7 @@ Live pages built on this library, all part of the
 | [BIP-322 message signing & verification](https://guggero.github.io/cryptography-toolkit/#!/bip322) | `bip322` | [pages/bip322](https://github.com/guggero/cryptography-toolkit/tree/master/pages/bip322) |
 | [PSBT editor](https://guggero.github.io/cryptography-toolkit/#!/psbt-editor) | `psbt` | [pages/psbt-editor](https://github.com/guggero/cryptography-toolkit/tree/master/pages/psbt-editor) |
 | [BIP-157: Compact Filters (watch-only wallet)](https://guggero.github.io/cryptography-toolkit/#!/bip157) | `WatchOnlyWallet`, `neutrino`, `descriptors` | [pages/bip157](https://github.com/guggero/cryptography-toolkit/tree/master/pages/bip157) |
+| [BIP-352: Silent Payments (scan for received payments)](https://guggero.github.io/cryptography-toolkit/#!/silentpayments) | `SilentPaymentScanner`, `silentpayments` | [pages/silentpayments](https://github.com/guggero/cryptography-toolkit/tree/master/pages/silentpayments) |
 
 ## API
 
@@ -768,6 +769,76 @@ filter file.
 
 Measured (real mainnet data): 100k headers validate in ~240 ms; a
 2,000-filter file verifies and matches in ~12 ms.
+
+---
+
+### `silentpayments`
+
+[BIP-352](https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki)
+Silent Payments scanning (receiver side), driven by the binary tweak index
+of a [block-dn](https://github.com/guggero/block-dn) server
+(`/sp/tweaks/<dustLimit>/<startHeight>`): per eligible transaction the
+server publishes `input_hash * A_sum` (a 33-byte point), from which the
+scanner derives candidate taproot output keys — one ECDH multiplication per
+transaction — and matches them against the **p2tr custom compact filter**.
+The scan private key and spend public key never leave the browser; the
+server only sees which block ranges are downloaded.
+
+The tweak data is materialized at four **dust filter levels** (0, 600,
+1000 and 3750 sats): a transaction is included if its largest taproot
+output value is strictly greater than the level, so the higher levels skip
+transactions whose taproot outputs are all uneconomical dust (inscription
+postage etc.) and shrink both the download and the ECDH work in spam-heavy
+ranges. Scan quickly at a high level, re-scan lower if an expected payment
+doesn't show up; level 0 is complete.
+
+Like `descriptors` and `neutrino`, the scanner is a **long-lived object**
+backed by a WASM-side handle (call `free()` or let GC release it). The
+scanner always tracks the base address and the change label (m=0).
+
+```typescript
+import { silentpayments } from 'btcutil-js';
+
+const scanner = await silentpayments.scanner(scanPriv, spendPub, 'signet');
+console.log(scanner.address);       // tsp1q... (display form)
+console.log(scanner.changeAddress); // the m=0 labeled address
+
+// Verify + ECDH + match one block-dn range in a single WASM pass. The
+// binary tweak file's self-describing header (network, format version,
+// start height, dust limit) is validated against the request:
+const result = await silentpayments.scanBatch(
+  scanner, 312000, tweakData, p2trFilterFile, headersSlice,
+  p2trFilterHeadersSlice, prevFilterHeaderHex, 1000,
+);
+// For a matched (downloaded) block, identify the actual outputs; each
+// match carries its block's 33-byte tweak keys:
+const found = await silentpayments.scanBlock(
+  scanner, blockBytes, result.matches[0].tweaks,
+);
+// found[i] = { txid, vout, value, xOnlyPubKey, label: 'base'|'change',
+//              k, privKeyTweak }
+```
+
+| Method | Go function | Description |
+|--------|-------------|-------------|
+| `scanner(scanPrivKey, spendPubKey, network?)` | `silentpayments.NewAddressForNet()` / `NewScanAddress()` / `LabelTweak()` | Create a scanner; exposes the bech32m `address` and `changeAddress`. |
+| `scanBatch(scanner, startHeight, tweakData, filterFile, headers, filterHeaders, prevFilterHeader, dustLimit?)` | `silentpayments.TransactionOutputKeysForFilter()` + `MatchBlock()` | One pass over a p2tr filter file range: derive k=0 candidates per served tweak, verify every filter against its committed header chain, match. Returns `{ matches: { height, blockHash, tweaks }[], skippedTweaks, timings }`. |
+| `scanBlock(scanner, blockBytes, tweakBytes)` | `silentpayments.CreateOutputKey()` | Identify the scanner's outputs in a downloaded block across output indexes k = 0, 1, 2, ... (BIP-352 continuation), with per-output `privKeyTweak` (add to the spend private key to derive the signing key). The binary format carries no transaction indexes, so tweaks are paired with outputs by key equality across the whole block. |
+| `scanOutputs(scanner, tweak, xOnlyKeys[])` | `silentpayments.CreateOutputKey()` | Pure identification against a list of x-only keys — the shape of the official BIP-352 receiving test vectors. |
+
+The full fetch/verify/scan pipeline — header sync, p2tr filter-header
+caching (shared with the watch-only wallet's store), batched parallel
+scanning on a worker pool with per-phase timing logs, spent-ness lookup —
+is the `SilentPaymentScanner` engine (`scan({ ..., dustLimit, onLog })`);
+the browser frontend is the cryptography-toolkit
+"BIP-352: Silent Payments" page, and
+[tools/sp-demo.mjs](tools/sp-demo.mjs) is a headless CLI driver
+(`--dust`, `--from`, `--to`).
+
+Measured on live signet: ECDH candidate derivation is ~98 % of scan time
+(~174 µs per eligible transaction single-threaded, scaling with the worker
+pool); downloads and filter verification are noise. The dust filter levels
+directly shrink that dominant term.
 
 ---
 

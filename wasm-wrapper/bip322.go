@@ -87,12 +87,15 @@ func bip322BuildToSignPacketFull(_ js.Value, args []js.Value) any {
 	if e != nil {
 		return e
 	}
-	pkt := bip322.BuildToSignPacketFull(
+	pkt, err := bip322.BuildToSignPacketFull(
 		[]byte(args[0].String()), pkScript,
 		int32(args[2].Int()),
 		uint32(args[3].Int()),
 		uint32(args[4].Int()),
 	)
+	if err != nil {
+		return errfResult("build to-sign packet: %s", err)
+	}
 	b64, err := pkt.B64Encode()
 	if err != nil {
 		return errfResult("encode: %s", err)

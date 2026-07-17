@@ -23,10 +23,15 @@ export interface BlockDnStatus {
   best_filter_header: string;
   entries_per_header_file: number;
   entries_per_filter_file: number;
+  entries_per_sptweak_file?: number;
   all_files_synced: boolean;
   /** Whether the server also maintains the output-type-restricted custom
    *  filters (p2wpkh/p2wsh/p2tr/segwit). Absent on older servers. */
   custom_filters_available?: boolean;
+  /** Tip of the BIP-352 tweak-data index; 0/absent when disabled. */
+  best_sptweak_height?: number;
+  /** Tip of the custom-filter index; 0/absent when disabled. */
+  best_custom_filter_height?: number;
 }
 
 /** Options for a single fetch. */
@@ -139,5 +144,44 @@ export class BlockDnClient {
   /** A full raw block by display-order hex hash. */
   block(hashHex: string): Promise<Uint8Array> {
     return this.fetchBinary(`/block/${hashHex}`);
+  }
+
+  /** One binary BIP-352 tweak file: an 18-byte self-describing header
+   *  (network magic, format version, file type, start height, dust
+   *  limit), then per block of the range a compact-size count followed by
+   *  that many 33-byte compressed tweak keys (input_hash * A_sum), in
+   *  transaction order. The dust limit selects one of the server's
+   *  materialized filter levels (0, 600, 1000 or 3750 sats): a
+   *  transaction is included if its largest taproot output value is
+   *  strictly greater than the limit. Requires --index-sp-tweak-data on
+   *  the server. */
+  spTweaks(
+    dustLimit: number,
+    startHeight: number,
+    opts?: BlockDnFetchOptions,
+  ): Promise<Uint8Array> {
+    return this.fetchBinary(
+      `/sp/tweaks/${dustLimit}/${startHeight}`, opts,
+    );
+  }
+
+  /** Whether an outpoint is currently unspent, via the server's proxied
+   *  UTXO lookup. Returns null when the server can't answer. */
+  async isUnspent(txid: string, vout: number): Promise<boolean | null> {
+    try {
+      const resp = await fetch(
+        `${this.baseUrl}/utxo/${txid}-${vout}?format=json`,
+      );
+      if (!resp.ok) return null;
+      const result = await resp.json();
+
+      // Core's REST getutxos bitmap: '1' = unspent, '0' = spent.
+      if (typeof result?.bitmap === 'string') {
+        return result.bitmap.startsWith('1');
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 }

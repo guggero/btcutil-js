@@ -218,6 +218,13 @@ func main() {
 			"planSatisfy":        js.FuncOf(planSatisfy),
 			"planFree":           js.FuncOf(planFree),
 		},
+		"silentpayments": map[string]any{
+			"scannerNew":  js.FuncOf(spScannerNew),
+			"scannerFree": js.FuncOf(spScannerFree),
+			"scanBatch":   js.FuncOf(spScanBatch),
+			"scanBlock":   js.FuncOf(spScanBlock),
+			"scanOutputs": js.FuncOf(spScanOutputs),
+		},
 		"neutrino": map[string]any{
 			"headerChainNew":    js.FuncOf(neutrinoHeaderChainNew),
 			"headerChainAppend": js.FuncOf(neutrinoHeaderChainAppend),

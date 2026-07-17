@@ -140,7 +140,7 @@ export function formatScanStats(stats: ScanStats): string {
 /** Map items through an async fn with at most `limit` in flight — parallel
  *  but polite: an unbounded Promise.all over hundreds of block fetches can
  *  overwhelm the origin server. Results keep the input order. */
-async function mapPool<T, R>(
+export async function mapPool<T, R>(
   items: T[],
   limit: number,
   fn: (item: T, i: number) => Promise<R>,

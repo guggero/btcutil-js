@@ -8,8 +8,10 @@
 
 import { init } from './init';
 import { createWatchList, matchFiltersSync, WatchList } from './neutrino';
+import { createSpScanner, scanBatchSync, SpScanner } from './spscan';
 
 let watch: WatchList | null = null;
+let spScanner: SpScanner | null = null;
 
 async function handle(msg: any, reply: (r: any) => void): Promise<void> {
   try {
@@ -34,6 +36,37 @@ async function handle(msg: any, reply: (r: any) => void): Promise<void> {
           msg.prev,
         );
         reply({ id: msg.id, ok: true, matches });
+        break;
+      }
+
+      case 'spInit': {
+        await init(msg.wasmUrl);
+        spScanner = createSpScanner(
+          msg.scanPrivKey, msg.spendPubKey, msg.network,
+        );
+        reply({ id: msg.id, ok: true, address: spScanner.address });
+        break;
+      }
+
+      case 'spScanBatch': {
+        if (!spScanner) {
+          throw new Error('worker not sp-initialized');
+        }
+        const spResult = scanBatchSync(
+          spScanner,
+          msg.startHeight,
+          new Uint8Array(msg.tweakData),
+          new Uint8Array(msg.filterFile),
+          new Uint8Array(msg.headers),
+          new Uint8Array(msg.filterHeaders),
+          msg.prev,
+          msg.dustLimit,
+        );
+        reply({
+          id: msg.id, ok: true, matches: spResult.matches,
+          skippedTweaks: spResult.skippedTweaks,
+          timings: spResult.timings,
+        });
         break;
       }
 

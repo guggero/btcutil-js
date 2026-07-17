@@ -11,6 +11,8 @@
  */
 
 import type { FilterMatch } from './neutrino';
+import type { SpBatchResult } from './spscan';
+import type { Bytes, Network } from './types';
 
 /** Options for {@link MatchWorkerPool.create}. */
 export interface MatchPoolOptions {
@@ -107,10 +109,23 @@ export class MatchWorkerPool {
    *  the given watch scripts (hex strings). Resolves to `null` if workers
    *  aren't available or fail to initialize — callers fall back to inline
    *  matching. */
-  static async create(
+  static create(
     size: number,
     scripts: string[],
     opts: MatchPoolOptions = {},
+  ): Promise<MatchWorkerPool | null> {
+    return MatchWorkerPool.createWithInit(size, opts, {
+      type: 'init', scripts, wasmUrl: opts.wasmUrl,
+    });
+  }
+
+  /** Spawn `size` workers and send each the given init message — the
+   *  generic base for pools with different worker-side contexts (script
+   *  watch lists, silent-payment scanners, ...). */
+  static async createWithInit(
+    size: number,
+    opts: MatchPoolOptions,
+    initMsg: any,
   ): Promise<MatchWorkerPool | null> {
     const url = opts.workerUrl ??
       new URL('./neutrino-worker.js', import.meta.url);
@@ -126,9 +141,7 @@ export class MatchWorkerPool {
           () => reject(new Error('worker init timeout')), timeoutMs,
         ));
       await Promise.race([
-        Promise.all(pool.workers.map((w) => w.request({
-          type: 'init', scripts, wasmUrl: opts.wasmUrl,
-        }))),
+        Promise.all(pool.workers.map((w) => w.request(initMsg))),
         timeout,
       ]);
       pool.idle = [...pool.workers];
@@ -136,6 +149,33 @@ export class MatchWorkerPool {
     } catch {
       pool.free();
       return null;
+    }
+  }
+
+  /** Run one request on an idle worker, transferring the given named
+   *  Uint8Array buffers zero-copy (non-exact views are copied first). */
+  async requestOnIdle(
+    msg: any,
+    buffers: Record<string, Uint8Array> = {},
+  ): Promise<any> {
+    const exact = (view: Uint8Array): ArrayBuffer =>
+      view.byteOffset === 0 && view.byteLength === view.buffer.byteLength
+        ? (view.buffer as ArrayBuffer)
+        : (view.slice().buffer as ArrayBuffer);
+
+    const transfer: ArrayBuffer[] = [];
+    const payload: any = { ...msg };
+    for (const [name, view] of Object.entries(buffers)) {
+      const buf = exact(view);
+      payload[name] = buf;
+      transfer.push(buf);
+    }
+
+    const worker = await this.acquire();
+    try {
+      return await worker.request(payload, transfer);
+    } finally {
+      this.release(worker);
     }
   }
 
@@ -189,5 +229,77 @@ export class MatchWorkerPool {
     for (const w of this.workers) w.kill();
     this.workers = [];
     this.idle = [];
+  }
+}
+
+
+/** One spScanBatch work item. */
+export interface SpScanTask {
+  startHeight: number;
+  tweakData: Uint8Array;
+  filterFile: Uint8Array;
+  headers: Uint8Array;
+  filterHeaders: Uint8Array;
+  prev: string;
+  dustLimit: number;
+}
+
+/** A pool of workers running BIP-352 batch scans, each with its own WASM
+ *  instance and scanner context (ECDH-heavy work parallelizes across
+ *  threads). Same graceful-degradation contract as MatchWorkerPool. */
+export class SpScanPool {
+  private pool!: MatchWorkerPool;
+
+  /** Spawn `size` workers initialized with the scanning keys. Resolves to
+   *  `null` if workers are unavailable — callers fall back to inline
+   *  scanning. The scan private key is sent to same-origin workers only
+   *  (never over the network). */
+  static async create(
+    size: number,
+    scanPrivKey: Bytes,
+    spendPubKey: Bytes,
+    network: Network,
+    opts: MatchPoolOptions = {},
+  ): Promise<SpScanPool | null> {
+    const inner = await MatchWorkerPool.createWithInit(size, opts, {
+      type: 'spInit',
+      scanPrivKey,
+      spendPubKey,
+      network,
+      wasmUrl: opts.wasmUrl,
+    });
+    if (!inner) return null;
+    const pool = new SpScanPool();
+    pool.pool = inner;
+    return pool;
+  }
+
+  /** Run one spScanBatch call on an idle worker. The four data buffers
+   *  are transferred (zero-copy where possible), so they must not be used
+   *  afterwards. */
+  async scanBatch(task: SpScanTask): Promise<SpBatchResult> {
+    const resp = await this.pool.requestOnIdle(
+      {
+        type: 'spScanBatch',
+        startHeight: task.startHeight,
+        prev: task.prev,
+        dustLimit: task.dustLimit,
+      },
+      {
+        tweakData: task.tweakData,
+        filterFile: task.filterFile,
+        headers: task.headers,
+        filterHeaders: task.filterHeaders,
+      },
+    );
+    return {
+      matches: resp.matches,
+      skippedTweaks: resp.skippedTweaks ?? 0,
+      timings: resp.timings,
+    };
+  }
+
+  free(): void {
+    this.pool.free();
   }
 }

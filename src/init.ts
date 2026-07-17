@@ -9,6 +9,12 @@ import {
 } from './codec';
 import { createDescriptor } from './descriptors';
 import {
+  createSpScanner,
+  scanBatchSync,
+  scanBlockSpSync,
+  scanOutputsSync,
+} from './spscan';
+import {
   createHeaderChain,
   createWatchList,
   matchFiltersSync,
@@ -37,6 +43,7 @@ import type { chaincfg as _chaincfg } from './chaincfg';
 import type { chainhash as _chainhash } from './chainhash';
 import type { descriptors as _descriptors } from './descriptors';
 import type { neutrino as _neutrino } from './neutrino';
+import type { silentpayments as _silentpayments } from './spscan';
 
 // ---------------------------------------------------------------------------
 // Sync API type — strips Promise<> from every method return type.
@@ -85,6 +92,7 @@ export interface BtcutilSync {
   chainhash: Sync<typeof _chainhash>;
   descriptors: Sync<typeof _descriptors>;
   neutrino: Sync<typeof _neutrino>;
+  silentpayments: Sync<typeof _silentpayments>;
 }
 
 // ---------------------------------------------------------------------------
@@ -230,6 +238,23 @@ function buildSyncApi(): BtcutilSync {
     // already loaded here, so create() is synchronous.
     descriptors: {
       create: (descriptor: string) => createDescriptor(descriptor),
+    },
+    // Silent payment scanning follows the same stateful-handle model.
+    silentpayments: {
+      scanner: (scanPriv: any, spendPub: any, network?: any) =>
+        createSpScanner(scanPriv, spendPub, network),
+      scanBatch: (
+        scanner: any, startHeight: any, tweakData: any, filterFile: any,
+        headers: any, filterHeaders: any, prevFilterHeader: any,
+        dustLimit: any = 0,
+      ) => scanBatchSync(
+        scanner, startHeight, tweakData, filterFile, headers,
+        filterHeaders, prevFilterHeader, dustLimit,
+      ),
+      scanBlock: (scanner: any, blockBytes: any, tweakBytes: any) =>
+        scanBlockSpSync(scanner, blockBytes, tweakBytes),
+      scanOutputs: (scanner: any, tweak: any, xOnlyKeys: any) =>
+        scanOutputsSync(scanner, tweak, xOnlyKeys),
     },
     // Neutrino primitives follow the same stateful-handle model as
     // descriptors; the module is loaded here, so creation is synchronous.

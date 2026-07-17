@@ -49,6 +49,28 @@ export type {
   Musig2Nonces,
   Musig2PartialSignResult,
 } from './musig2';
+export { silentpayments, SpScanner } from './spscan';
+export {
+  SilentPaymentScanner,
+  TAPROOT_ACTIVATION,
+  SP_TWEAK_DUST_LIMITS,
+  formatSpScanStats,
+  formatSpScanBreakdown,
+} from './spscanner';
+export type {
+  SpScanResult,
+  SpScanStats,
+  SpScanBreakdown,
+  SilentPaymentScannerOptions,
+  SpScanRun,
+} from './spscanner';
+export type {
+  SpFoundOutput,
+  SpIdentifiedOutput,
+  SpBatchMatch,
+  SpBatchResult,
+  SpBatchTimings,
+} from './spscan';
 export { neutrino, HeaderChain, WatchList } from './neutrino';
 export type {
   HeaderChainState,
@@ -61,8 +83,8 @@ export { BlockDnClient } from './blockdn';
 export type { BlockDnStatus, BlockDnFetchOptions } from './blockdn';
 export { OpfsStorage, NodeStorage, FILTER_TYPES } from './walletstore';
 export type { WalletStorage, StorageStats } from './walletstore';
-export { MatchWorkerPool } from './matchpool';
-export type { MatchPoolOptions, MatchTask } from './matchpool';
+export { MatchWorkerPool, SpScanPool } from './matchpool';
+export type { MatchPoolOptions, MatchTask, SpScanTask } from './matchpool';
 export {
   WatchOnlyWallet,
   birthdayHeuristic,

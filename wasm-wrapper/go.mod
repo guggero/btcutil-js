@@ -11,6 +11,7 @@ require (
 	github.com/btcsuite/btcd/chainhash/v2 v2.0.0
 	github.com/btcsuite/btcd/descriptors v1.0.0
 	github.com/btcsuite/btcd/psbt/v2 v2.0.0
+	github.com/btcsuite/btcd/silentpayments v1.0.0
 	github.com/btcsuite/btcd/txscript/v2 v2.0.0
 	github.com/btcsuite/btcd/wire/v2 v2.0.0
 )
@@ -26,12 +27,15 @@ require (
 	golang.org/x/sys v0.44.0 // indirect
 )
 
-// The BIP-322 package is not yet merged. The PR also updates the psbt package.
+// This single commit is the head of a branch that contains the following
+// unmerged btcd PRs in order:
+//  - https://github.com/btcsuite/btcd/pull/2521
+//  - https://github.com/btcsuite/btcd/pull/2568
+//  - https://github.com/btcsuite/btcd/pull/2466
 replace (
-	github.com/btcsuite/btcd/bip322 => github.com/guggero/btcd/bip322 v0.0.0-20260703084944-26b19cc04355
-	github.com/btcsuite/btcd/psbt/v2 => github.com/guggero/btcd/psbt/v2 v2.0.0-20260703084944-26b19cc04355
-	github.com/btcsuite/btcd/txscript/v2 => github.com/guggero/btcd/txscript/v2 v2.0.0-20260703084944-26b19cc04355
+	github.com/btcsuite/btcd/bip322 => github.com/guggero/btcd/bip322 v0.0.0-20260717100126-52c0c464fad6
+	github.com/btcsuite/btcd/descriptors => github.com/guggero/btcd/descriptors v0.0.0-20260717100126-52c0c464fad6
+	github.com/btcsuite/btcd/psbt/v2 => github.com/guggero/btcd/psbt/v2 v2.0.0-20260717100126-52c0c464fad6
+	github.com/btcsuite/btcd/silentpayments => github.com/guggero/btcd/silentpayments v0.0.0-20260717100126-52c0c464fad6
+	github.com/btcsuite/btcd/txscript/v2 => github.com/guggero/btcd/txscript/v2 v2.0.0-20260717100126-52c0c464fad6
 )
-
-// The descriptors package also isn't merged yet.
-replace github.com/btcsuite/btcd/descriptors => github.com/guggero/btcd/descriptors v0.0.0-20260707160445-fd5e24753cfc
