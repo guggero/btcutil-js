@@ -89,8 +89,8 @@ type filterMatch struct {
 // startHeight; prevFilterHeader is the committed filter header of
 // startHeight-1 (zero hash for genesis).
 func matchFiltersImpl(watch *watchList, startHeight int64, filterFile,
-	headers, filterHeaders []byte,
-	prevFilterHeader chainhash.Hash) ([]filterMatch, error) {
+	headers, filterHeaders []byte, prevFilterHeader chainhash.Hash,
+	onBlocks func(int)) ([]filterMatch, error) {
 
 	if len(headers)%headerSize != 0 {
 		return nil, fmt.Errorf("header data length %d is not a "+
@@ -107,6 +107,12 @@ func matchFiltersImpl(watch *watchList, startHeight int64, filterFile,
 
 	var matches []filterMatch
 	for i := 0; i < count; i++ {
+		// Report progress sparsely, so the calls into JS stay
+		// negligible next to the per-block work.
+		if onBlocks != nil && i > 0 && i%128 == 0 {
+			onBlocks(i)
+		}
+
 		height := startHeight + int64(i)
 
 		filterBytes, err := wire.ReadVarBytes(
@@ -171,6 +177,10 @@ func matchFiltersImpl(watch *watchList, startHeight int64, filterFile,
 				blockHash: blockHash,
 			})
 		}
+	}
+
+	if onBlocks != nil && count > 0 {
+		onBlocks(count)
 	}
 
 	// The filter file may contain more entries than the height range

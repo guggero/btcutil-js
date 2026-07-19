@@ -46,7 +46,11 @@ class MatchWorker {
 
   private pending = new Map<
     number,
-    { resolve: (v: any) => void; reject: (e: Error) => void }
+    {
+      resolve: (v: any) => void;
+      reject: (e: Error) => void;
+      onProgress?: (msg: any) => void;
+    }
   >();
   private nextId = 1;
 
@@ -77,6 +81,12 @@ class MatchWorker {
   private dispatch(msg: any): void {
     const entry = this.pending.get(msg.id);
     if (!entry) return;
+    // Progress messages stream while the request is still running; only
+    // the final message (ok/error) settles it.
+    if (msg.progress) {
+      entry.onProgress?.(msg);
+      return;
+    }
     this.pending.delete(msg.id);
     if (msg.ok) entry.resolve(msg);
     else entry.reject(new Error(msg.error));
@@ -87,10 +97,14 @@ class MatchWorker {
     this.pending.clear();
   }
 
-  request(msg: any, transfer: any[] = []): Promise<any> {
+  request(
+    msg: any,
+    transfer: any[] = [],
+    onProgress?: (msg: any) => void,
+  ): Promise<any> {
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      this.pending.set(id, { resolve, reject, onProgress });
       this.post({ ...msg, id }, transfer);
     });
   }
@@ -153,10 +167,13 @@ export class MatchWorkerPool {
   }
 
   /** Run one request on an idle worker, transferring the given named
-   *  Uint8Array buffers zero-copy (non-exact views are copied first). */
+   *  Uint8Array buffers zero-copy (non-exact views are copied first).
+   *  Progress messages the worker streams for this request are forwarded
+   *  to `onProgress`. */
   async requestOnIdle(
     msg: any,
     buffers: Record<string, Uint8Array> = {},
+    onProgress?: (msg: any) => void,
   ): Promise<any> {
     const exact = (view: Uint8Array): ArrayBuffer =>
       view.byteOffset === 0 && view.byteLength === view.buffer.byteLength
@@ -173,7 +190,7 @@ export class MatchWorkerPool {
 
     const worker = await this.acquire();
     try {
-      return await worker.request(payload, transfer);
+      return await worker.request(payload, transfer, onProgress);
     } finally {
       this.release(worker);
     }
@@ -193,8 +210,12 @@ export class MatchWorkerPool {
 
   /** Run one matchFilters call on an idle worker. The three data buffers
    *  are transferred (zero-copy where possible), so they must not be used
-   *  afterwards. */
-  async match(task: MatchTask): Promise<FilterMatch[]> {
+   *  afterwards. `onBlocks` streams the number of blocks processed so far
+   *  while the match runs. */
+  async match(
+    task: MatchTask,
+    onBlocks?: (blocks: number) => void,
+  ): Promise<FilterMatch[]> {
     // Transferring sends the *whole* backing ArrayBuffer; a view that
     // doesn't cover its buffer exactly (e.g. a subarray) must be copied
     // first or the worker would see stray bytes.
@@ -218,6 +239,7 @@ export class MatchWorkerPool {
           prev: task.prev,
         },
         [filterBuf, headerBuf, fheaderBuf],
+        (msg) => onBlocks?.(msg.blocks),
       );
       return resp.matches;
     } finally {
@@ -276,8 +298,12 @@ export class SpScanPool {
 
   /** Run one spScanBatch call on an idle worker. The four data buffers
    *  are transferred (zero-copy where possible), so they must not be used
-   *  afterwards. */
-  async scanBatch(task: SpScanTask): Promise<SpBatchResult> {
+   *  afterwards. `onBlocks` streams the number of blocks processed so far
+   *  while the scan runs. */
+  async scanBatch(
+    task: SpScanTask,
+    onBlocks?: (blocks: number) => void,
+  ): Promise<SpBatchResult> {
     const resp = await this.pool.requestOnIdle(
       {
         type: 'spScanBatch',
@@ -291,6 +317,7 @@ export class SpScanPool {
         headers: task.headers,
         filterHeaders: task.filterHeaders,
       },
+      (msg) => onBlocks?.(msg.blocks),
     );
     return {
       matches: resp.matches,

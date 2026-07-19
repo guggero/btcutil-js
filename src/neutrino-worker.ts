@@ -34,6 +34,11 @@ async function handle(msg: any, reply: (r: any) => void): Promise<void> {
           new Uint8Array(msg.headers),
           new Uint8Array(msg.filterHeaders),
           msg.prev,
+          // Stream per-block progress as non-final messages; the final
+          // reply below carries the same id with ok set.
+          (blocks: number) => reply({
+            id: msg.id, progress: true, blocks,
+          }),
         );
         reply({ id: msg.id, ok: true, matches });
         break;
@@ -61,6 +66,11 @@ async function handle(msg: any, reply: (r: any) => void): Promise<void> {
           new Uint8Array(msg.filterHeaders),
           msg.prev,
           msg.dustLimit,
+          // Stream per-block progress as non-final messages; the final
+          // reply below carries the same id with ok set.
+          (blocks: number) => reply({
+            id: msg.id, progress: true, blocks,
+          }),
         );
         reply({
           id: msg.id, ok: true, matches: spResult.matches,

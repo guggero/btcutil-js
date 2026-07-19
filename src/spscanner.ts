@@ -148,9 +148,10 @@ export interface SilentPaymentScannerOptions {
    *  --index-custom-filters. */
   serverUrl: string;
   storage: WalletStorage;
-  /** Parallel 2000-block units per batch (1..16, default 4). Each unit
-   *  holds a tweak-data JSON file in memory — on mainnet those run
-   *  40-100 MB each, so higher values trade memory for speed. */
+  /** Parallel 2000-block scan units (1..16, default 8). Each unit holds
+   *  one range's tweak and filter data plus its own WASM worker heap —
+   *  roughly 60 MB per unit on signet, up to ~100 MB on spam-heavy
+   *  mainnet ranges — so higher values trade memory for speed. */
   batchSize?: number;
   wasmSource?: string;
   workerUrl?: string | URL;
@@ -170,9 +171,29 @@ export interface SpScanRun {
    *  (default 0 = every tweak). Payments whose taproot outputs are all
    *  ≤ the limit are invisible at that level. */
   dustLimit?: number;
-  onProgress?: (height: number, target: number, found: number) => void;
+  /** Overall progress: blocks scanned so far vs. the total. Ranges
+   *  complete out of order, so this counts work done rather than a
+   *  contiguous chain position. */
+  onProgress?: (blocksDone: number, totalBlocks: number,
+    found: number) => void;
   /** Streamed as outputs are found (before the run completes). */
   onFound?: (result: SpScanResult) => void;
+  /** Called once at scan start with the scan plan: the start heights of
+   *  all 2000-block ranges the scan covers (the segments of a piece-map
+   *  progress display) and the effective block window. */
+  onRanges?: (plan: {
+    starts: number[];
+    blocksPerRange: number;
+    fromHeight: number;
+    toHeight: number;
+    totalBlocks: number;
+  }) => void;
+  /** Per-range stage transitions: data download started, WASM scan
+   *  started (then repeated with a growing `blocksDone` as the scan
+   *  progresses), range fully processed. Keyed by the range's start
+   *  height (see {@link onRanges}). */
+  onRange?: (start: number, stage: 'fetch' | 'scan' | 'done',
+    blocksDone?: number) => void;
   /** Per-range timing log lines, for diagnosing where scan time goes. */
   onLog?: (line: string) => void;
 }
@@ -205,7 +226,7 @@ export class SilentPaymentScanner {
     scanner.client = new BlockDnClient(opts.serverUrl);
     scanner.storage = opts.storage;
     scanner.batchSize = Math.max(
-      1, Math.min(16, Math.floor(opts.batchSize ?? 4)),
+      1, Math.min(16, Math.floor(opts.batchSize ?? 8)),
     );
     scanner.wasmSource = opts.wasmSource;
     scanner.workerUrl = opts.workerUrl;
@@ -331,9 +352,12 @@ export class SilentPaymentScanner {
     this.address = scanner.address;
     this.changeAddress = scanner.changeAddress;
 
-    const pool = this.batchSize > 1
+    // batchSize is a public field, so it can be adjusted between scans
+    // on the same engine; re-clamp at use.
+    const units = Math.max(1, Math.min(16, Math.floor(this.batchSize)));
+    const pool = units > 1
       ? await SpScanPool.create(
-        this.batchSize, run.scanPrivKey, run.spendPubKey, this.network,
+        units, run.scanPrivKey, run.spendPubKey, this.network,
         { workerUrl: this.workerUrl, wasmUrl: this.wasmSource },
       )
       : null;
@@ -355,78 +379,114 @@ export class SilentPaymentScanner {
 
     try {
       const firstFile = Math.floor(from / perFile) * perFile;
-      const batchSpan = perFile * this.batchSize;
+      const ranges: { start: number; count: number }[] = [];
+      for (let start = firstFile; start <= tip; start += perFile) {
+        ranges.push({
+          start, count: Math.min(perFile, tip - start + 1),
+        });
+      }
+      run.onRanges?.({
+        starts: ranges.map((r) => r.start),
+        blocksPerRange: perFile,
+        fromHeight: from,
+        toHeight: tip,
+        totalBlocks: stats.blocksScanned,
+      });
 
-      for (let batch = firstFile; batch <= tip; batch += batchSpan) {
-        const ranges: { start: number; count: number }[] = [];
-        for (let i = 0; i < this.batchSize; i++) {
-          const start = batch + i * perFile;
-          if (start > tip) break;
-          ranges.push({
-            start, count: Math.min(perFile, tip - start + 1),
-          });
-        }
+      let blocksDone = 0;
 
-        // Each range: fetch + scan concurrently; the await is the
-        // batch barrier.
-        const rangeResults = await Promise.all(ranges.map(
-          (range) => this.scanRange(
-            pool, scanner, range, from, dustLimit, run.onLog,
-          ),
-        ));
+      // In-flight ranges report their in-scan block counts here, so the
+      // overall progress can include partial credit for work under way.
+      const partials = new Map<number, number>();
+      const report = () => {
+        let inflight = 0;
+        partials.forEach((blocks) => {
+          inflight += blocks;
+        });
+        run.onProgress?.(
+          Math.min(blocksDone + inflight, stats.blocksScanned),
+          stats.blocksScanned, stats.foundOutputs,
+        );
+      };
+
+      // A sliding window over all ranges keeps every worker busy for
+      // the entire scan — a barrier between waves would leave workers
+      // idle whenever ranges take unequal time (they do: eligible
+      // transaction counts vary wildly between ranges). Each range
+      // fetches and identifies its own matched blocks as soon as its
+      // filter pass completes, so results stream in as they are found,
+      // not in height order.
+      await mapPool(ranges, units, async (range) => {
+        // Blocks below the requested start are still processed (files
+        // are range aligned) but don't count as user-visible progress.
+        const skipped = Math.max(from, range.start) - range.start;
+        const relevant = range.count - skipped;
+
+        const rr = await this.scanRange(
+          pool, scanner, range, from, dustLimit, run.onLog,
+          run.onRange,
+          (blocks) => {
+            const done = Math.min(
+              Math.max(0, blocks - skipped), relevant,
+            );
+            partials.set(range.start, done);
+            run.onRange?.(range.start, 'scan', done);
+            report();
+          },
+        );
 
         const b = stats.breakdown;
-        for (const rr of rangeResults) {
-          stats.txsScanned += rr.txsScanned;
-          stats.matchedBlocks += rr.matches.length;
-          stats.invalidTweaks += rr.skippedTweaks;
-          b.tweakFetchMs += rr.timing.tweakFetchMs;
-          b.filterFetchMs += rr.timing.filterFetchMs;
-          b.cacheReadMs += rr.timing.cacheReadMs;
-          b.scanMs += rr.timing.scanMs;
-          b.deriveMs += rr.timing.deriveMs;
-          b.verifyMs += rr.timing.verifyMs;
-          b.matchMs += rr.timing.matchMs;
-          b.wasmParseMs += rr.timing.wasmParseMs;
-        }
+        stats.txsScanned += rr.txsScanned;
+        stats.matchedBlocks += rr.matches.length;
+        stats.invalidTweaks += rr.skippedTweaks;
+        b.tweakFetchMs += rr.timing.tweakFetchMs;
+        b.filterFetchMs += rr.timing.filterFetchMs;
+        b.cacheReadMs += rr.timing.cacheReadMs;
+        b.scanMs += rr.timing.scanMs;
+        b.deriveMs += rr.timing.deriveMs;
+        b.verifyMs += rr.timing.verifyMs;
+        b.matchMs += rr.timing.matchMs;
+        b.wasmParseMs += rr.timing.wasmParseMs;
 
-        // Fetch matched blocks (bounded) and identify the outputs on
-        // the main thread, in ascending height order.
-        const blockStarted = Date.now();
-        const matches = rangeResults.flatMap((rr) => rr.matches);
-        const blocks = await mapPool(
-          matches, this.batchSize * 2,
-          (m) => this.client.block(m.blockHash),
-        );
-        for (let i = 0; i < matches.length; i++) {
-          const m = matches[i];
-          const found = scanBlockSpSync(scanner, blocks[i], m.tweaks);
-          for (const out of found) {
-            const result: SpScanResult = {
-              ...out,
-              height: m.height,
-              blockHash: m.blockHash,
-              unspent: await this.client.isUnspent(
-                out.txid, out.vout,
-              ),
-            };
-            results.push(result);
-            stats.foundOutputs++;
-            run.onFound?.(result);
+        if (rr.matches.length > 0) {
+          const blockStarted = Date.now();
+          const blocks = await mapPool(
+            rr.matches, 4, (m) => this.client.block(m.blockHash),
+          );
+          for (let i = 0; i < rr.matches.length; i++) {
+            const m = rr.matches[i];
+            const found = scanBlockSpSync(scanner, blocks[i], m.tweaks);
+            for (const out of found) {
+              const result: SpScanResult = {
+                ...out,
+                height: m.height,
+                blockHash: m.blockHash,
+                unspent: await this.client.isUnspent(
+                  out.txid, out.vout,
+                ),
+              };
+              results.push(result);
+              stats.foundOutputs++;
+              run.onFound?.(result);
+            }
           }
-        }
-        if (matches.length > 0) {
           const blockMs = Date.now() - blockStarted;
-          stats.breakdown.blockMs += blockMs;
-          run.onLog?.(`matched blocks: fetched + identified ` +
-            `${matches.length} block(s) in ${formatMs(blockMs)}`);
+          b.blockMs += blockMs;
+          run.onLog?.(`[${range.start}] fetched + identified ` +
+            `${rr.matches.length} matched block(s) in ` +
+            `${formatMs(blockMs)}`);
         }
 
-        const last = ranges[ranges.length - 1];
-        run.onProgress?.(
-          last.start + last.count - 1, tip, stats.foundOutputs,
-        );
-      }
+        run.onRange?.(range.start, 'done', relevant);
+        partials.delete(range.start);
+        blocksDone += relevant;
+        report();
+      });
+
+      // Ranges complete out of order; report the outputs sorted by
+      // chain position.
+      results.sort((a, c) => a.height - c.height ||
+        a.txid.localeCompare(c.txid) || a.vout - c.vout);
     } finally {
       scanner.free();
       pool?.free();
@@ -449,6 +509,8 @@ export class SilentPaymentScanner {
     from: number,
     dustLimit: number,
     onLog?: (line: string) => void,
+    onRange?: (start: number, stage: 'fetch' | 'scan' | 'done') => void,
+    onBlocks?: (blocks: number) => void,
   ): Promise<{
     matches: SpBatchMatch[];
     txsScanned: number;
@@ -460,6 +522,7 @@ export class SilentPaymentScanner {
     };
   }> {
     const attempt = async (fresh: boolean) => {
+      onRange?.(start, 'fetch');
       const timing = {
         tweakFetchMs: 0, filterFetchMs: 0, cacheReadMs: 0, scanMs: 0,
         deriveMs: 0, verifyMs: 0, matchMs: 0, wasmParseMs: 0,
@@ -494,15 +557,16 @@ export class SilentPaymentScanner {
         await this.storage.readFilterHeaders(start - 1, 1, 'p2tr'),
       );
 
+      onRange?.(start, 'scan');
       const scanStarted = Date.now();
       const batchResult = pool
         ? await pool.scanBatch({
           startHeight: start, tweakData, filterFile,
           headers, filterHeaders, prev, dustLimit,
-        })
+        }, onBlocks)
         : scanBatchSync(
           scanner, start, tweakData, filterFile, headers,
-          filterHeaders, prev, dustLimit,
+          filterHeaders, prev, dustLimit, onBlocks,
         );
       timing.scanMs = Date.now() - scanStarted;
 

@@ -191,21 +191,6 @@ func spScannerFree(_ js.Value, args []js.Value) any {
 	return okResult(true)
 }
 
-// candidateKeys derives the k=0 candidate taproot output keys of one served
-// transaction tweak, for the scanner's base and change addresses. A tweak
-// that is not a valid curve point can never correspond to a real payment,
-// so it yields nil keys and no error — callers count and skip it.
-func (s *spScanner) candidateKeys(
-	tweakRaw []byte) ([]*btcec.PublicKey, error) {
-
-	tweakPub, err := btcec.ParsePubKey(tweakRaw)
-	if err != nil {
-		return nil, nil
-	}
-
-	return sp.TransactionOutputKeysForFilter(*tweakPub, s.addresses)
-}
-
 // parseSpTweakHeader validates the self-describing header of a block-dn SP
 // tweak data response against the scanner's network and the expected range
 // start and dust limit, returning an error map on any mismatch.
@@ -262,9 +247,17 @@ func (s *spScanner) parseSpTweakHeader(data []byte, startHeight int64,
 func spScanBatch(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 8, "handle, startHeight, tweakData, "+
 		"filterFile, headers, filterHeaders, prevHeader, "+
-		"dustLimit"); e != nil {
+		"dustLimit[, onBlocks]"); e != nil {
 
 		return e
+	}
+
+	// An optional progress callback, invoked with the number of blocks
+	// processed so far — sparsely, so the calls into JS stay negligible
+	// next to the per-block crypto.
+	var onBlocks js.Value
+	if len(args) > 8 && args[8].Type() == js.TypeFunction {
+		onBlocks = args[8]
 	}
 	scanner, e := lookupSpScanner(args[0])
 	if e != nil {
@@ -326,6 +319,10 @@ func spScanBatch(_ js.Value, args []js.Value) any {
 	skippedTweaks := 0
 	tweakCount := 0
 	for i := 0; i < count; i++ {
+		if !onBlocks.IsUndefined() && i > 0 && i%128 == 0 {
+			onBlocks.Invoke(i)
+		}
+
 		height := startHeight + int64(i)
 
 		filterBytes, err := wire.ReadVarBytes(
@@ -393,20 +390,29 @@ func spScanBatch(_ js.Value, args []js.Value) any {
 			continue
 		}
 
+		// Derive the k=0 candidate output keys for the base and
+		// change addresses of all of the block's tweaks in one batch,
+		// which amortizes the expensive field inversions and computes
+		// each tweak point only once across the addresses. A tweak
+		// that is not a valid curve point can never correspond to a
+		// real payment and is counted and skipped.
 		deriveStart := time.Now()
-		keys := make([]*btcec.PublicKey, 0, 2*numTweaks)
+		tweakPoints := make([]*btcec.PublicKey, 0, numTweaks)
 		for t := 0; t < int(numTweaks); t++ {
 			tweakRaw := blockTweaks[t*spTweakKeySize : (t+1)*
 				spTweakKeySize]
-			candidates, err := scanner.candidateKeys(tweakRaw)
+			tweakPub, err := btcec.ParsePubKey(tweakRaw)
 			if err != nil {
-				return errfResult("height %d: %s", height, err)
-			}
-			if candidates == nil {
 				skippedTweaks++
 				continue
 			}
-			keys = append(keys, candidates...)
+			tweakPoints = append(tweakPoints, tweakPub)
+		}
+		keys, err := sp.TransactionOutputKeysForFilterBatch(
+			scanner.addresses, tweakPoints,
+		)
+		if err != nil {
+			return errfResult("height %d: %s", height, err)
 		}
 		tweakCount += int(numTweaks)
 		deriveDur += time.Since(deriveStart)
@@ -431,6 +437,9 @@ func spScanBatch(_ js.Value, args []js.Value) any {
 				"tweaks":    bytesToJS(blockTweaks),
 			})
 		}
+	}
+	if !onBlocks.IsUndefined() && count > 0 {
+		onBlocks.Invoke(count)
 	}
 
 	return okResult(map[string]any{
@@ -536,6 +545,16 @@ func (s *spScanner) spIdentifyOutputs(tweakRaw []byte,
 
 	var found []spFound
 	for k := uint32(0); ; k++ {
+		// BIP-352 v1.1.0 caps the scan at K_max output indexes per
+		// transaction, bounding the work an adversarial transaction
+		// with thousands of matching outputs can cause. A compliant
+		// sender never creates outputs beyond the same limit.
+		//
+		// Spec: If k == K_max (=2323), stop scanning.
+		if k == sp.MaxRecipientsPerGroup {
+			return found, nil
+		}
+
 		foundAtK := false
 
 		for _, variant := range []struct {

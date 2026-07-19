@@ -120,6 +120,7 @@ export function formatBytes(n: number): string {
 /** Statistics of one completed {@link WatchOnlyWallet.scan} run. */
 export interface ScanStats {
   blocksScanned: number;
+  /** Number of 2000-block ranges processed and checkpointed. */
   batches: number;
   matchedBlocks: number;
   seconds: number;
@@ -128,10 +129,10 @@ export interface ScanStats {
   filterType: FilterType;
 }
 
-/** The "N blocks scanned with X batches in Y s" stats line. */
+/** The "N blocks scanned in X ranges in Y s" stats line. */
 export function formatScanStats(stats: ScanStats): string {
-  return `${stats.blocksScanned.toLocaleString()} blocks scanned with ` +
-    `${stats.batches} batch${stats.batches === 1 ? '' : 'es'} in ` +
+  return `${stats.blocksScanned.toLocaleString()} blocks scanned in ` +
+    `${stats.batches} range${stats.batches === 1 ? '' : 's'} in ` +
     `${stats.seconds.toFixed(1)} s (${stats.matchedBlocks} blocks ` +
     `matched, ${formatBytes(stats.bytesDownloaded)} downloaded, ` +
     `${stats.filterType} filters)`;
@@ -228,6 +229,22 @@ export class WatchOnlyWallet {
    *  syncHeaders()/scan(). */
   filterType: FilterType = 'basic';
 
+  /** Called whenever a new UTXO paying a watched script is recorded —
+   *  set once after open(); fires from full scans and tip following
+   *  alike. */
+  onFound?: (utxo: {
+    txid: string; vout: number; value: number; address: string;
+    height: number;
+  }) => void;
+
+  /** Called whenever a previously recorded UTXO is detected as spent.
+   *  `txid`/`vout` identify the spent UTXO, `spentBy` the spending
+   *  transaction and `height` the block it confirmed in. */
+  onSpent?: (spend: {
+    txid: string; vout: number; value: number; address: string;
+    spentBy: string; height: number;
+  }) => void;
+
   private data!: WalletData;
   private wasmSource?: string;
   private workerUrl?: string | URL;
@@ -240,7 +257,7 @@ export class WatchOnlyWallet {
     wallet.client = new BlockDnClient(opts.serverUrl);
     wallet.storage = opts.storage;
     wallet.batchSize = Math.max(
-      1, Math.min(16, Math.floor(opts.batchSize ?? 4)),
+      1, Math.min(16, Math.floor(opts.batchSize ?? 8)),
     );
     wallet.wasmSource = opts.wasmSource;
     wallet.workerUrl = opts.workerUrl;
@@ -459,16 +476,22 @@ export class WatchOnlyWallet {
       const key = `${out.txid}:${out.vout}`;
       if (this.data.utxos[key] || this.data.spent[key]) continue;
 
+      const address = this.addressForScript(out.pkScript);
       this.data.utxos[key] = {
         value: out.value,
         height,
         blockHash,
         pkScript: toHex(out.pkScript),
-        address: this.addressForScript(out.pkScript),
+        address,
       };
 
       // Watch the new UTXO so a later block's spend is detected.
       watch.addOutpoint(out.txid, out.vout);
+
+      this.onFound?.({
+        txid: out.txid, vout: out.vout, value: out.value, address,
+        height,
+      });
     }
 
     for (const spend of result.spends) {
@@ -481,6 +504,11 @@ export class WatchOnlyWallet {
         ...utxo, spentBy: spend.txid, spentAt: height,
       };
       watch.removeOutpoint(spend.prevTxid, spend.prevVout);
+
+      this.onSpent?.({
+        txid: spend.prevTxid, vout: spend.prevVout, value: utxo.value,
+        address: utxo.address, spentBy: spend.txid, height,
+      });
     }
   }
 
@@ -505,8 +533,12 @@ export class WatchOnlyWallet {
     { start, count }: { start: number; count: number },
     from: number,
     filterType: FilterType,
+    onRange?: (start: number, stage: 'fetch' | 'scan' | 'done',
+      blocksDone?: number) => void,
+    onBlocks?: (blocks: number) => void,
   ): Promise<FilterMatch[]> {
     const attempt = async (fresh: boolean): Promise<FilterMatch[]> => {
+      onRange?.(start, 'fetch');
       const [filterFile, headers, filterHeaders] = await Promise.all([
         this.client.filters(start, { fresh, filterType }),
         this.storage.readHeaders(start, count),
@@ -518,13 +550,15 @@ export class WatchOnlyWallet {
 
       // One pass: verify every filter against the committed filter
       // header chain and match against the watch list.
+      onRange?.(start, 'scan');
       const matches = pool
         ? await pool.match({
           startHeight: start, filterFile, headers, filterHeaders,
           prev,
-        })
+        }, onBlocks)
         : this.lib.neutrino.matchFilters(
           watch, start, filterFile, headers, filterHeaders, prev,
+          onBlocks,
         );
 
       // Blocks below a watch's birthday only appear because files are
@@ -545,18 +579,38 @@ export class WatchOnlyWallet {
   /** Scan filters from the lowest unscanned birthday to the header tip,
    *  fetching and fully scanning blocks whose filter matches.
    *
-   *  Filter files are processed in batches of `batchSize`: each file of a
-   *  batch is downloaded and matched concurrently (matching runs on a pool
-   *  of worker threads where available, each with its own WASM instance),
-   *  then the batch completes as one unit (barrier) before the wallet
-   *  state is persisted and onProgress(height, target, foundCount) fires —
-   *  once per batch.
+   *  Filter files are processed on a sliding window of `batchSize`
+   *  parallel units (matching runs on a pool of worker threads where
+   *  available, each with its own WASM instance): a unit picks up the
+   *  next range as soon as it finishes its current one, so ranges
+   *  complete out of order. Matched blocks are applied — and the wallet
+   *  state persisted — strictly in ascending height order, since an
+   *  output found at height h must be outpoint-watched before a later
+   *  block spends it, and the scannedTo resume checkpoint must stay
+   *  contiguous.
+   *
+   *  onProgress(blocksDone, totalBlocks, foundCount) reports work done
+   *  (including in-scan partial credit), not a chain position. The
+   *  optional callbacks mirror the silent payment scanner's: `onRanges`
+   *  announces the scan plan, `onRange` streams per-range stage
+   *  transitions for a piece-map display.
    *
    *  Returns the wallet summary plus `stats` for the completed scan. */
   async scan(
     onProgress: (
-      height: number, target: number, foundCount: number,
+      blocksDone: number, totalBlocks: number, foundCount: number,
     ) => void = () => {},
+    callbacks: {
+      onRanges?: (plan: {
+        starts: number[];
+        blocksPerRange: number;
+        fromHeight: number;
+        toHeight: number;
+        totalBlocks: number;
+      }) => void;
+      onRange?: (start: number, stage: 'fetch' | 'scan' | 'done',
+        blocksDone?: number) => void;
+    } = {},
   ): Promise<WalletSummary & { stats: ScanStats }> {
     const from = this.scanStart();
     const tip = this.chain.tip().tipHeight;
@@ -577,7 +631,10 @@ export class WatchOnlyWallet {
     const bytesBefore = this.client.bytesFetched;
     const status = await this.client.status();
     const perFile = status.entries_per_filter_file;
-    const batchSpan = perFile * this.batchSize;
+
+    // batchSize is a public field, so it can be adjusted between scans
+    // on the same engine; re-clamp at use.
+    const units = Math.max(1, Math.min(16, Math.floor(this.batchSize)));
 
     // The watch set may have changed since the last header sync (a new
     // legacy watch can demote a segwit-only selection to basic): re-select
@@ -591,9 +648,9 @@ export class WatchOnlyWallet {
 
     // Real matching parallelism needs one WASM instance per thread; fall
     // back to inline matching if workers are unavailable (pool is null).
-    const pool = this.batchSize > 1
+    const pool = units > 1
       ? await MatchWorkerPool.create(
-        this.batchSize,
+        units,
         this.data.watches.flatMap((w) => w.scripts),
         { workerUrl: this.workerUrl, wasmUrl: this.wasmSource },
       )
@@ -601,53 +658,108 @@ export class WatchOnlyWallet {
 
     try {
       const firstFile = Math.floor(from / perFile) * perFile;
-      for (let batch = firstFile; batch <= tip; batch += batchSpan) {
-        // The file-aligned ranges of this batch (the last one may hold
-        // fewer files, and its last file fewer entries).
-        const ranges: { start: number; count: number }[] = [];
-        for (let i = 0; i < this.batchSize; i++) {
-          const start = batch + i * perFile;
-          if (start > tip) break;
-          ranges.push({
-            start, count: Math.min(perFile, tip - start + 1),
-          });
-        }
+      const ranges: { start: number; count: number }[] = [];
+      for (let start = firstFile; start <= tip; start += perFile) {
+        ranges.push({
+          start, count: Math.min(perFile, tip - start + 1),
+        });
+      }
+      const totalBlocks = tip - from + 1;
+      callbacks.onRanges?.({
+        starts: ranges.map((r) => r.start),
+        blocksPerRange: perFile,
+        fromHeight: from,
+        toHeight: tip,
+        totalBlocks,
+      });
 
-        // Download + match every range of the batch concurrently; the
-        // await is the batch barrier. Ranges (and thus matches) stay
-        // in ascending height order.
-        const matches = (await Promise.all(ranges.map(
-          (range) => this.matchRange(pool, watch, range, from, filterType),
-        ))).flat();
-        stats.matchedBlocks += matches.length;
-
-        // Fetch all matched blocks in parallel (bounded — a hot watch
-        // list can match hundreds of blocks per batch), but apply them
-        // strictly in ascending height order: an output found at
-        // height h must be outpoint-watched before a later block of
-        // the same batch spends it.
-        const blocks = await mapPool(
-          matches, this.batchSize * 2,
-          (m) => this.client.block(m.blockHash),
-        );
-        for (let i = 0; i < matches.length; i++) {
-          const result = this.lib.neutrino.scanBlock(watch, blocks[i]);
-          await this.applyBlock(
-            watch, matches[i].height, matches[i].blockHash, result,
-          );
-        }
-
-        // Barrier: the whole batch is complete — persist and report
-        // exactly once.
-        const last = ranges[ranges.length - 1];
-        this.data.scannedTo = last.start + last.count - 1;
-        await this.storage.setWallet(this.data);
-        stats.batches++;
+      // Progress counts work done: fully applied ranges plus in-scan
+      // partial credit of in-flight ones.
+      let blocksDone = 0;
+      const partials = new Map<number, number>();
+      const report = () => {
+        let inflight = 0;
+        partials.forEach((blocks) => {
+          inflight += blocks;
+        });
         onProgress(
-          this.data.scannedTo, tip,
+          Math.min(blocksDone + inflight, totalBlocks), totalBlocks,
           Object.keys(this.data.utxos).length,
         );
-      }
+      };
+
+      // Matching runs on a sliding window (ranges complete out of
+      // order), but matched blocks are applied and checkpointed
+      // strictly in ascending range order: completed ranges park their
+      // matches here until all earlier ranges are done, and a
+      // promise-chained applier drains the contiguous prefix.
+      const parked = new Map<number, FilterMatch[]>();
+      let nextApply = 0;
+      let applyChain: Promise<void> = Promise.resolve();
+
+      const applyReady = async () => {
+        for (;;) {
+          if (nextApply >= ranges.length) return;
+          const range = ranges[nextApply];
+          const matches = parked.get(range.start);
+          if (!matches) return;
+          parked.delete(range.start);
+
+          // Fetch this range's matched blocks in parallel (bounded),
+          // then apply them in ascending height order.
+          const blocks = await mapPool(
+            matches, 8, (m) => this.client.block(m.blockHash),
+          );
+          for (let i = 0; i < matches.length; i++) {
+            const result = this.lib.neutrino.scanBlock(
+              watch, blocks[i],
+            );
+            await this.applyBlock(
+              watch, matches[i].height, matches[i].blockHash, result,
+            );
+          }
+
+          // The contiguous prefix grew — persist the checkpoint.
+          this.data.scannedTo = range.start + range.count - 1;
+          await this.storage.setWallet(this.data);
+          stats.batches++;
+          nextApply++;
+
+          callbacks.onRange?.(
+            range.start, 'done',
+            range.start + range.count - Math.max(from, range.start),
+          );
+          partials.delete(range.start);
+          blocksDone += range.start + range.count -
+            Math.max(from, range.start);
+          report();
+        }
+      };
+
+      await mapPool(ranges, units, async (range) => {
+        const skipped = Math.max(from, range.start) - range.start;
+        const relevant = range.count - skipped;
+
+        const matches = await this.matchRange(
+          pool, watch, range, from, filterType, callbacks.onRange,
+          (blocks) => {
+            partials.set(range.start, Math.min(
+              Math.max(0, blocks - skipped), relevant,
+            ));
+            callbacks.onRange?.(
+              range.start, 'scan', partials.get(range.start),
+            );
+            report();
+          },
+        );
+        stats.matchedBlocks += matches.length;
+        parked.set(range.start, matches);
+
+        // Serialize application through a promise chain: only one
+        // applier runs at a time, and each drain pass consumes as much
+        // of the contiguous prefix as is ready.
+        await (applyChain = applyChain.then(applyReady));
+      });
     } finally {
       watch.free();
       pool?.free();

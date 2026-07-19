@@ -26,8 +26,8 @@ github.com/guggero/btcd/descriptors v0.0.0-20260717100126-52c0c464fad6 h1:wE3Nuq
 github.com/guggero/btcd/descriptors v0.0.0-20260717100126-52c0c464fad6/go.mod h1:vO0nNt1mvBml82VGcsUBapXLzPODoRzgDe2pC+5xZd0=
 github.com/guggero/btcd/psbt/v2 v2.0.0-20260717100126-52c0c464fad6 h1:cds7NSRF6kVF90vl4IpJ7g9mzq/Am4WeyjZux53c4QI=
 github.com/guggero/btcd/psbt/v2 v2.0.0-20260717100126-52c0c464fad6/go.mod h1:/5H9vGCLtLm/RJXwNjafCRS8g8RbX+QgkeO/LU9yPtA=
-github.com/guggero/btcd/silentpayments v0.0.0-20260717100126-52c0c464fad6 h1:Qgnj2Eieixyzc/ZXyUUqwXmhA7OdIoxuBGenZE6dkLs=
-github.com/guggero/btcd/silentpayments v0.0.0-20260717100126-52c0c464fad6/go.mod h1:4YHjdlrs+Ydqu2U7le96nuezuv3TeVbzEegNPzgZA9M=
+github.com/guggero/btcd/silentpayments v0.0.0-20260719104849-6acff1fa788a h1:5TLsq2iNMry0Yt7RtVHAVFTOC0dEk6PaHA2+xTQb+js=
+github.com/guggero/btcd/silentpayments v0.0.0-20260719104849-6acff1fa788a/go.mod h1:4YHjdlrs+Ydqu2U7le96nuezuv3TeVbzEegNPzgZA9M=
 github.com/guggero/btcd/txscript/v2 v2.0.0-20260717100126-52c0c464fad6 h1:Qtijwh1gPWzW2rXff0f9eHt0IyDZEkRCls/D7mT4AdU=
 github.com/guggero/btcd/txscript/v2 v2.0.0-20260717100126-52c0c464fad6/go.mod h1:Q30ltpfH/3PVz3lpq8v9GosWUJEOgyAN43UExHYlXxs=
 github.com/kcalvinalvin/anet v0.0.0-20251112173137-d8ddc1f6dbee h1:FPP9HDkBbPyniu+u7FHZg+kKFX1WW0gxOGteJ0h3AJk=

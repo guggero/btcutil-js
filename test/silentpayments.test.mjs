@@ -256,13 +256,18 @@ describe('silentpayments: batch scanning', () => {
     const scanner = await scannerFor(r);
     const batch = await syntheticBatch(r);
 
+    const progress = [];
     const result = await silentpayments.scanBatch(
       scanner, 5000, batch.tweaks, batch.filterFile, batch.header,
-      batch.filterHeader, '', 0,
+      batch.filterHeader, '', 0, (blocks) => progress.push(blocks),
     );
     assert.equal(result.matches.length, 1);
     assert.equal(result.matches[0].height, 5000);
     assert.equal(result.skippedTweaks, 0);
+
+    // The progress callback reports the processed block count, at least
+    // once at the end of the pass (this batch holds a single block).
+    assert.deepEqual(progress, [1]);
 
     // The match carries the block's tweak keys for the block scan.
     assert.equal(toHex(result.matches[0].tweaks), r.expected.tweak);
@@ -513,6 +518,29 @@ describe('silentpayments: block scanning (pooled identification)', () => {
   });
 });
 
+
+describe('silentpayments: K_max scan cap', () => {
+  it('stops scanning at 2323 output indexes (official vector)', async () => {
+    // BIP-352 v1.1.0: an adversarial transaction with thousands of
+    // matching outputs must not cause unbounded scanning — of the
+    // vector's 2324 matching outputs, only the first K_max = 2323 may
+    // be identified.
+    const tc = vectors.find(
+      (v) => v.comment.startsWith('Maximum per-group recipient limit'),
+    );
+    assert.ok(tc, 'K_max vector not found');
+    const r = tc.receiving[0];
+    assert.equal(r.given.outputs.length, 2324);
+
+    const scanner = await scannerFor(r);
+    const found = await silentpayments.scanOutputs(
+      scanner, r.expected.tweak, r.given.outputs,
+    );
+    assert.equal(found.length, r.expected.n_outputs);
+    assert.equal(found.length, 2323);
+    scanner.free();
+  });
+});
 
 describe('silentpayments: sync API', () => {
   let lib;

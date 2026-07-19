@@ -60,7 +60,7 @@ describe('watchwallet: formatting', () => {
     });
     assert.equal(
       line,
-      '13,129 blocks scanned with 2 batches in 37.0 s ' +
+      '13,129 blocks scanned in 2 ranges in 37.0 s ' +
         '(42 blocks matched, 897.8 MiB downloaded, p2tr filters)',
     );
   });

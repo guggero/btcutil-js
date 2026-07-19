@@ -246,10 +246,10 @@ function buildSyncApi(): BtcutilSync {
       scanBatch: (
         scanner: any, startHeight: any, tweakData: any, filterFile: any,
         headers: any, filterHeaders: any, prevFilterHeader: any,
-        dustLimit: any = 0,
+        dustLimit: any = 0, onBlocks?: any,
       ) => scanBatchSync(
         scanner, startHeight, tweakData, filterFile, headers,
-        filterHeaders, prevFilterHeader, dustLimit,
+        filterHeaders, prevFilterHeader, dustLimit, onBlocks,
       ),
       scanBlock: (scanner: any, blockBytes: any, tweakBytes: any) =>
         scanBlockSpSync(scanner, blockBytes, tweakBytes),
@@ -264,10 +264,10 @@ function buildSyncApi(): BtcutilSync {
       watchList: (scripts?: any) => createWatchList(scripts),
       matchFilters: (
         watch: any, startHeight: any, filterFile: any, headers: any,
-        filterHeaders: any, prevFilterHeader: any,
+        filterHeaders: any, prevFilterHeader: any, onBlocks?: any,
       ) => matchFiltersSync(
         watch, startHeight, filterFile, headers, filterHeaders,
-        prevFilterHeader,
+        prevFilterHeader, onBlocks,
       ),
       scanBlock: (watch: any, blockBytes: any) =>
         scanBlockSync(watch, blockBytes),

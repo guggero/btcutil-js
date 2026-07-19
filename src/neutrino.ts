@@ -220,6 +220,7 @@ export function matchFiltersSync(
   headers: Bytes,
   filterHeaders: Bytes,
   prevFilterHeader: string,
+  onBlocks?: (blocks: number) => void,
 ): FilterMatch[] {
   return unwrap<FilterMatch[]>(
     g().neutrino.matchFilters(
@@ -229,6 +230,7 @@ export function matchFiltersSync(
       headers,
       filterHeaders,
       prevFilterHeader,
+      onBlocks,
     ),
   );
 }
@@ -290,11 +292,12 @@ export const neutrino = {
     headers: Bytes,
     filterHeaders: Bytes,
     prevFilterHeader: string,
+    onBlocks?: (blocks: number) => void,
   ): Promise<FilterMatch[]> {
     await init();
     return matchFiltersSync(
       watch, startHeight, filterFile, headers, filterHeaders,
-      prevFilterHeader,
+      prevFilterHeader, onBlocks,
     );
   },
 

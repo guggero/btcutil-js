@@ -265,9 +265,19 @@ func neutrinoWatchListFree(_ js.Value, args []js.Value) any {
 // committed filter-header chain and matches it against the watch list.
 func neutrinoMatchFilters(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 6, "watchHandle, startHeight, filterFile, "+
-		"headers, filterHeaders, prevFilterHeader"); e != nil {
+		"headers, filterHeaders, prevFilterHeader[, onBlocks]"); e != nil {
 
 		return e
+	}
+
+	// An optional progress callback, invoked with the number of blocks
+	// processed so far.
+	var onBlocks func(int)
+	if len(args) > 6 && args[6].Type() == js.TypeFunction {
+		callback := args[6]
+		onBlocks = func(blocks int) {
+			callback.Invoke(blocks)
+		}
 	}
 	watch, e := lookupWatchList(args[0])
 	if e != nil {
@@ -300,7 +310,7 @@ func neutrinoMatchFilters(_ js.Value, args []js.Value) any {
 
 	matches, err := matchFiltersImpl(
 		watch, startHeight, filterFile, headers, filterHeaders,
-		prevFilterHeader,
+		prevFilterHeader, onBlocks,
 	)
 	if err != nil {
 		return errfResult("match filters: %s", err)

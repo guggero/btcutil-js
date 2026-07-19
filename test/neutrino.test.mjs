@@ -210,10 +210,11 @@ describe('neutrino: filter matching', () => {
 
   it('verifies 2000 filters and finds the block 170 script', async () => {
     const watch = await neutrino.watchList([watchedScript]);
+    const progress = [];
     const matches = await neutrino.matchFilters(
       watch, 0, filters0,
       headers0.subarray(0, 2000 * 80),
-      filterHeaders0, '',
+      filterHeaders0, '', (blocks) => progress.push(blocks),
     );
 
     assert.deepEqual(matches, [{
@@ -221,6 +222,15 @@ describe('neutrino: filter matching', () => {
       blockHash: '00000000d1145790a8694403d4063f323d499e655c8342683' +
         '4d4ce2f8dd4a2ee',
     }]);
+
+    // The progress callback streams the processed block count sparsely
+    // (every 128 blocks) and finishes with the total.
+    assert.ok(progress.length > 2);
+    assert.equal(progress[0], 128);
+    assert.equal(progress[progress.length - 1], 2000);
+    for (let i = 1; i < progress.length; i++) {
+      assert.ok(progress[i] > progress[i - 1]);
+    }
     watch.free();
   });
 

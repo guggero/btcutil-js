@@ -36,6 +36,6 @@ replace (
 	github.com/btcsuite/btcd/bip322 => github.com/guggero/btcd/bip322 v0.0.0-20260717100126-52c0c464fad6
 	github.com/btcsuite/btcd/descriptors => github.com/guggero/btcd/descriptors v0.0.0-20260717100126-52c0c464fad6
 	github.com/btcsuite/btcd/psbt/v2 => github.com/guggero/btcd/psbt/v2 v2.0.0-20260717100126-52c0c464fad6
-	github.com/btcsuite/btcd/silentpayments => github.com/guggero/btcd/silentpayments v0.0.0-20260717100126-52c0c464fad6
+	github.com/btcsuite/btcd/silentpayments => github.com/guggero/btcd/silentpayments v0.0.0-20260719104849-6acff1fa788a
 	github.com/btcsuite/btcd/txscript/v2 => github.com/guggero/btcd/txscript/v2 v2.0.0-20260717100126-52c0c464fad6
 )

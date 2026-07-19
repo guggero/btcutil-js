@@ -136,11 +136,12 @@ export function scanBatchSync(
   filterHeaders: Bytes,
   prevFilterHeader: string,
   dustLimit: number,
+  onBlocks?: (blocks: number) => void,
 ): SpBatchResult {
   return unwrap<SpBatchResult>(
     g().silentpayments.scanBatch(
       scanner.handle, startHeight, tweakData, filterFile, headers,
-      filterHeaders, prevFilterHeader, dustLimit,
+      filterHeaders, prevFilterHeader, dustLimit, onBlocks,
     ),
   );
 }
@@ -221,11 +222,12 @@ export const silentpayments = {
     filterHeaders: Bytes,
     prevFilterHeader: string,
     dustLimit = 0,
+    onBlocks?: (blocks: number) => void,
   ): Promise<SpBatchResult> {
     await init();
     return scanBatchSync(
       scanner, startHeight, tweakData, filterFile, headers,
-      filterHeaders, prevFilterHeader, dustLimit,
+      filterHeaders, prevFilterHeader, dustLimit, onBlocks,
     );
   },
 

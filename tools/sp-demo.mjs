@@ -26,7 +26,7 @@ const { values: args } = parseArgs({
     to: { type: 'string' },
     dust: { type: 'string', default: '0' },
     datadir: { type: 'string', default: '.sp-demo' },
-    'batch-size': { type: 'string', default: '4' },
+    'batch-size': { type: 'string', default: '8' },
     quiet: { type: 'boolean', default: false },
   },
 });
