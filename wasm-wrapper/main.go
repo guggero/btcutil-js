@@ -6,9 +6,22 @@
 
 package main
 
-import "syscall/js"
+import (
+	"syscall/js"
+
+	"github.com/btcsuite/btcd/chaincfg/v2"
+)
 
 func main() {
+	// Enable Bitcoin's SLIP-0132 version pairs (y/z/Y/Z and their testnet
+	// counterparts) before anything can parse an extended key, so those
+	// keys neuter and round-trip like the built-in x/t families. The call
+	// is idempotent and only fails on a conflicting registration, which
+	// this binary never makes.
+	if err := chaincfg.RegisterSLIP132KeyIDs(); err != nil {
+		panic("registering SLIP-0132 key IDs: " + err.Error())
+	}
+
 	// The bridge namespace is passed to the JS-side readiness callback as
 	// its sole argument (see __btcutilReady below) — we no longer publish
 	// it on globalThis to avoid polluting the page (security-review L-1).
@@ -60,6 +73,7 @@ func main() {
 			"generateSeed":   js.FuncOf(hdGenerateSeed),
 			"publicKey":      js.FuncOf(hdPublicKey),
 			"address":        js.FuncOf(hdAddress),
+			"musig2Key":      js.FuncOf(hdMuSig2Key),
 		},
 		"bip322": map[string]any{
 			"verifyMessage":           js.FuncOf(bip322VerifyMessage),
@@ -160,6 +174,7 @@ func main() {
 			"rawTxInWitnessSignature":   js.FuncOf(txscriptRawTxInWitnessSignature),
 			"witnessSignature":          js.FuncOf(txscriptWitnessSignature),
 			"rawTxInTaprootSignature":   js.FuncOf(txscriptRawTxInTaprootSignature),
+			"verifyScript":              js.FuncOf(txscriptVerifyScript),
 		},
 		"block": map[string]any{
 			"decode":     js.FuncOf(blockDecode),

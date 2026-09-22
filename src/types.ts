@@ -330,10 +330,23 @@ export interface DescriptorAssets {
     pubKey: string,
     leafHash: string,
   ) => number | false | undefined;
-  /** The maximum relative locktime allowed. */
-  relativeLocktime?: number;
-  /** The maximum absolute locktime allowed. */
-  absoluteLocktime?: number;
+  /** Whether the preimage of a hash fragment is available. `hashFunc` is one
+   *  of `"sha256"`, `"hash256"`, `"ripemd160"` and `"hash160"`, and `hash` is
+   *  the hex-encoded hash it commits to. */
+  lookupPreimage?: (hashFunc: string, hash: string) => boolean;
+  /** The version of the transaction the spend is planned for. A relative
+   *  locktime (`older()`) is only enforced by a transaction of version 2 or
+   *  later (BIP68), so a plan can only rely on one if this says so. */
+  txVersion?: number;
+  /** The nLockTime of the transaction the spend is planned for, which bounds
+   *  the absolute locktimes (`after()`) a plan may rely on (BIP65). */
+  txLockTime?: number;
+  /** The nSequence of the input being spent, which both kinds of locktime
+   *  depend on. A relative locktime is the sequence itself, which BIP68 only
+   *  enforces while its disable flag (bit 31) is clear; an absolute locktime
+   *  is only enforced for an input whose sequence is not final
+   *  (`0xffffffff`). */
+  txInputSequence?: number;
 }
 
 /** Provides the concrete signatures used to complete a plan via
@@ -345,6 +358,12 @@ export interface DescriptorSatisfier {
   lookupTapLeafScriptSig?: (
     pubKey: string,
     leafHash: string,
+  ) => Bytes | false | undefined;
+  /** The preimage of a hash fragment, keyed like
+   *  {@link DescriptorAssets.lookupPreimage}. */
+  lookupPreimage?: (
+    hashFunc: string,
+    hash: string,
   ) => Bytes | false | undefined;
 }
 

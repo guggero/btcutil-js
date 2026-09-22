@@ -48,14 +48,22 @@ export interface Musig2PartialSignResult {
  *
  *  All functions use BIP-327's sorted-keys convention, so the public key
  *  list may be passed in any order — as long as it is the same list
- *  everywhere. */
+ *  everywhere. The one exception is `aggregateKeys`, whose sorting can be
+ *  turned off for protocols that fix the participant order themselves. */
 export const musig2 = {
   /** Aggregate the signers' public keys into the single MuSig2 key.
+   *
+   *  The keys are sorted first, per BIP-327, so the list may be passed in
+   *  any order. Pass `sortKeys: false` for protocols that aggregate in the
+   *  order the participants are listed instead, such as BIP-328.
    *  Calls Go: musig2.AggregateKeys() from btcd/btcec/schnorr/musig2. */
-  async aggregateKeys(pubKeys: Bytes[]): Promise<Musig2AggregateKeysResult> {
+  async aggregateKeys(
+    pubKeys: Bytes[],
+    sortKeys = true,
+  ): Promise<Musig2AggregateKeysResult> {
     await init();
     return unwrap<Musig2AggregateKeysResult>(
-      g().musig2.aggregateKeys(pubKeys),
+      g().musig2.aggregateKeys(pubKeys, sortKeys),
     );
   },
 

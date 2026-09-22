@@ -267,17 +267,25 @@ Wallet Import Format encoding and decoding.
 
 BIP-32 hierarchical deterministic key derivation.
 
+Parsing accepts any version bytes. Bitcoin's
+[SLIP-0132](https://github.com/satoshilabs/slips/blob/master/slip-0132.md)
+pairs (`ypub`/`zpub`, `Ypub`/`Zpub` and their testnet counterparts) are
+additionally registered at startup, which is what lets those keys resolve
+their own public version — so they neuter like the built-in `xpub`/`tpub`
+families instead of needing an explicit target.
+
 | Method | Go function | Description |
 |--------|-------------|-------------|
 | `newMaster(seed, network?)` | `hdkeychain.NewMaster()` | Create a master extended key from a seed. |
-| `fromString(key)` | `hdkeychain.NewKeyFromString()` | Parse an xprv/xpub/tprv/tpub string. Returns `ExtendedKeyInfo`. |
+| `fromString(key, strict?)` | `hdkeychain.NewKeyFromString()` / `NewKeyFromStringStrict()` | Parse an xprv/xpub/tprv/tpub string. Returns `ExtendedKeyInfo`. Lenient by default (checksum and key material only); `strict` additionally enforces the BIP-32 encoding rules — a depth-zero key must have a zero parent fingerprint and child index, and the version must be registered and match the key's private/public kind. |
 | `derive(key, index)` | `ExtendedKey.Derive()` | Derive a non-hardened child. `index` must be in `[0, 2^31)`; pass hardened indices via `deriveHardened`. |
 | `deriveHardened(key, index)` | `ExtendedKey.Derive()` | Derive a hardened child (adds `0x80000000` automatically). `index` must be in `[0, 2^31)`. |
 | `derivePath(key, path)` | `ExtendedKey.Derive()` | Derive along a BIP-32 path like `"m/44'/0'/0'/0/0"`. |
-| `neuter(key, targetPubVersion?)` | `ExtendedKey.Neuter()` / `CloneWithVersion()` | Convert a private key to its public counterpart. For non-registered version bytes (yprv/zprv/...), pass the target public version explicitly (4 bytes, e.g. `04b24746` for zpub). |
+| `neuter(key, targetPubVersion?)` | `ExtendedKey.Neuter()` / `CloneWithVersion()` | Convert a private key to its public counterpart. Registered versions (including SLIP-0132's yprv/zprv/...) resolve on their own; for an unregistered custom version, pass the target public version explicitly (4 bytes, e.g. `04b24746` for zpub). |
 | `generateSeed(length?)` | `hdkeychain.GenerateSeed()` | Generate a random seed (default 32 bytes). |
 | `publicKey(key)` | `ExtendedKey.ECPubKey()` | Get the compressed public key (Uint8Array). |
 | `address(key, network?)` | `ExtendedKey.Address()` | Get the P2PKH address. |
+| `musig2Key(aggregateKey, network?)` | `hdkeychain.NewMuSig2Key()` | Wrap an aggregated MuSig2 key in the BIP-328 synthetic xpub (zero chain code, depth, fingerprint and child index). |
 
 ---
 
@@ -513,6 +521,7 @@ Bitcoin transaction script analysis, creation, taproot, and signing.
 | `rawTxInWitnessSignature(rawTx, idx, amount, subScript, hashType, privKey)` | `txscript.RawTxInWitnessSignature()` | Witness v0 input signature. |
 | `witnessSignature(rawTx, idx, amount, subScript, hashType, privKey, compress)` | `txscript.WitnessSignature()` | Complete P2WPKH witness stack (sig + pubkey). |
 | `rawTxInTaprootSignature(rawTx, idx, merkleRoot, hashType, privKey, prevOuts[])` | `txscript.RawTxInTaprootSignature()` | Taproot key-path signature. |
+| `verifyScript(rawTx, idx, prevOuts[])` | `txscript.NewEngine()` + `Engine.Execute()` | Execute one input's script pair under the standard verification flags. The transaction must already carry the input's scriptSig and witness, and `prevOuts` must cover every input (taproot sighashes commit to all of them). Returns `{ valid, error? }`; an invalid spend is a result, not a throw. |
 
 Hash type constants: `SigHashAll = 1`, `SigHashNone = 2`, `SigHashSingle = 3`, `SigHashAnyOneCanPay = 0x80`, `SigHashDefault = 0` (taproot).
 
@@ -586,7 +595,7 @@ const sig = await musig2.combineSigs(p1.r, [p1.s, p2.s]);
 
 | Method | Go function | Description |
 |--------|-------------|-------------|
-| `aggregateKeys(pubKeys[])` | `musig2.AggregateKeys()` | Aggregate the signers' keys. Returns `{ combinedKey (33B), xOnlyKey (32B), parityOdd }`. |
+| `aggregateKeys(pubKeys[], sortKeys?)` | `musig2.AggregateKeys()` | Aggregate the signers' keys. Returns `{ combinedKey (33B), xOnlyKey (32B), parityOdd }`. Keys are sorted per BIP-327 unless `sortKeys` is `false`, which protocols that fix the participant order need (e.g. BIP-328). |
 | `genNonces(pubKey, privKey?, combinedKey?, msg?)` | `musig2.GenNonces()` | One signer's nonce pair `{ pubNonce (66B), secNonce (97B) }`. The optional arguments mix extra commitment entropy into the derivation. The secret nonce is strictly single-use. |
 | `aggregateNonces(pubNonces[])` | `musig2.AggregateNonces()` | Combine all public nonces into the 66-byte combined nonce. |
 | `partialSign(secNonce, privKey, combinedNonce, pubKeys[], msg)` | `musig2.Sign()` | One signer's partial signature `{ s (32B), r (33B) }`; `r` is the final nonce, identical for every signer. |
@@ -690,6 +699,26 @@ const { witness, scriptSig } = plan.satisfy({
   lookupTapKeySpendSig: () => mySchnorrSig, // Uint8Array | hex, or false
 });
 ```
+
+`assets` describes what *could* be provided (availability and sizes), while
+`satisfier` provides the concrete bytes. Both accept the same lookups —
+`lookupEcdsaSig`, `lookupTapKeySpendSig`, `lookupTapLeafScriptSig` and
+`lookupPreimage(hashFunc, hash)`, where `hashFunc` is one of `sha256`,
+`hash256`, `ripemd160` and `hash160` and `hash` is hex — returning a size (for
+`assets`) or the bytes (for `satisfier`), or a falsy value when unavailable.
+
+`assets` additionally takes the transaction context the locktime fragments
+depend on. A plan may only rely on `older()` / `after()` when these say the
+spending transaction actually enforces them:
+
+| Field | Description |
+|-------|-------------|
+| `txVersion` | Version of the spending transaction; BIP68 only enforces relative locktimes from version 2. |
+| `txLockTime` | Its `nLockTime`, which bounds the absolute locktimes (BIP65). |
+| `txInputSequence` | The `nSequence` of the input being spent. A relative locktime is the sequence itself (BIP68 enforces it while bit 31 is clear); an absolute locktime needs a non-final sequence. |
+
+A callback that throws is reported as an error from `planAt()` / `satisfy()`
+rather than tearing down the WASM instance.
 
 ---
 

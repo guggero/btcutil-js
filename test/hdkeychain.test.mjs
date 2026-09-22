@@ -1,7 +1,8 @@
 import './setup.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { hdkeychain } from '../dist/index.js';
+import { readFileSync } from 'node:fs';
+import { address, hash, hdkeychain, init } from '../dist/index.js';
 import { toHex } from './util.mjs';
 
 
@@ -157,11 +158,15 @@ describe('hdkeychain: neuter with target version', () => {
     assert.ok(pub.startsWith('xpub'));
   });
 
-  it('a zprv cannot be neutered without a target version', async () => {
-    await assert.rejects(() => hdkeychain.neuter(testZprv));
+  it('neuters a zprv without a target version', async () => {
+    // The SLIP-0132 version bytes are registered at startup, so the public
+    // counterpart of a zprv resolves like any built-in version would.
+    assert.equal(await hdkeychain.neuter(testZprv), testZpub);
   });
 
   it('converts zprv to zpub with the target version', async () => {
+    // An explicit target version still works, and agrees with the version
+    // the registry resolves on its own.
     const zpub = await hdkeychain.neuter(testZprv, '04b24746');
     assert.equal(zpub, testZpub);
   });
@@ -185,5 +190,121 @@ describe('hdkeychain: neuter with target version', () => {
     await assert.rejects(
       () => hdkeychain.neuter(testZprv, 'aabb'), /4 bytes/,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Strict parsing and SLIP-0132 (vectors from btcd's hdkeychain package)
+// ---------------------------------------------------------------------------
+
+const bip32Vectors = JSON.parse(readFileSync(
+  new URL('test-vectors/hdkeychain-bip32.json', import.meta.url), 'utf-8',
+));
+const slip132Vectors = JSON.parse(readFileSync(
+  new URL('test-vectors/hdkeychain-slip132.json', import.meta.url), 'utf-8',
+));
+
+// The official BIP-32 invalid-key vectors that only strict parsing rejects:
+// their key material and checksum are fine, but the encoding breaks a BIP-32
+// rule. Every other invalid vector is already rejected by the lenient parser.
+const strictOnlyReasons = new Set([
+  'pubkey version / prvkey mismatch',
+  'prvkey version / pubkey mismatch',
+  'zero depth with non-zero parent fingerprint',
+  'zero depth with non-zero index',
+  'unknown extended key version',
+]);
+
+describe('hdkeychain: strict parsing', () => {
+  it('accepts the valid BIP-32 vectors in both modes', async () => {
+    for (const v of bip32Vectors.valid) {
+      for (const key of [v.xprv, v.xpub]) {
+        assert.equal((await hdkeychain.fromString(key)).key, key);
+        assert.equal((await hdkeychain.fromString(key, true)).key, key);
+      }
+    }
+  });
+
+  bip32Vectors.invalid.forEach((v, i) => {
+    it(`invalid/${i}: ${v.reason}`, async () => {
+      // Strict parsing must reject every official invalid vector.
+      await assert.rejects(() => hdkeychain.fromString(v.key, true));
+
+      // The lenient parser only rejects the ones whose key material or
+      // checksum is broken; the encoding-rule violations parse through,
+      // which is exactly the difference the flag exists for.
+      if (strictOnlyReasons.has(v.reason)) {
+        assert.equal((await hdkeychain.fromString(v.key)).key, v.key);
+      } else {
+        await assert.rejects(() => hdkeychain.fromString(v.key));
+      }
+    });
+  });
+
+  it('accepts registered SLIP-0132 keys in strict mode', async () => {
+    // Strict parsing requires a registered version, so these only pass
+    // because the SLIP-0132 pairs are registered at startup.
+    for (const v of slip132Vectors) {
+      for (const key of [v.private, v.public]) {
+        assert.equal((await hdkeychain.fromString(key, true)).key, key);
+      }
+    }
+  });
+
+  it('rejects an unregistered version in strict mode only', async () => {
+    // Re-version a valid xprv to a version nobody registers, keeping the
+    // checksum correct, so only the version check can reject it.
+    const lib = await init();
+    const xprv = bip32Vectors.valid[0].xprv;
+    const payload = Uint8Array.from(lib.base58.decode(xprv).slice(0, 78));
+    payload.set([0x01, 0x02, 0x03, 0x04], 0);
+    const custom = lib.base58.encode(Uint8Array.from([
+      ...payload, ...lib.chainhash.doubleHash(payload).slice(0, 4),
+    ]));
+
+    assert.equal((await hdkeychain.fromString(custom)).key, custom);
+    await assert.rejects(
+      () => hdkeychain.fromString(custom, true), /version/,
+    );
+  });
+});
+
+describe('hdkeychain: SLIP-0132 vectors', () => {
+  slip132Vectors.forEach((v) => {
+    it(v.path, async () => {
+      // Neutering preserves the SLIP-0132 public version bytes, which only
+      // works because the pair is registered.
+      assert.equal(await hdkeychain.neuter(v.private), v.public);
+
+      // The published account key derives the vector's first address at
+      // /0/0, through the public branch. The output type belongs to the
+      // derivation path, not to the key's version bytes, so the caller
+      // picks it — the same way btcd's own vector test does.
+      let pub = v.public;
+      for (const index of [0, 0]) {
+        pub = await hdkeychain.derive(pub, index);
+      }
+      const keyHash = await hash.hash160(await hdkeychain.publicKey(pub));
+
+      let derived;
+      switch (v.path) {
+        case "m/44'/0'/0'":
+          derived = await address.fromPubKeyHash(keyHash);
+          break;
+        case "m/49'/0'/0'":
+          // P2WPKH nested in P2SH: the redeem script is the witness
+          // program, which fromScript hashes for us.
+          derived = await address.fromScript(
+            new Uint8Array([0x00, 0x14, ...keyHash]),
+          );
+          break;
+        case "m/84'/0'/0'":
+          derived = await address.fromWitnessPubKeyHash(keyHash);
+          break;
+        default:
+          assert.fail(`unhandled path ${v.path}`);
+      }
+      assert.equal(derived, v.address);
+    });
   });
 });

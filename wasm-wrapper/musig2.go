@@ -43,10 +43,11 @@ func pubKeysFromArg(arg js.Value) ([]*btcec.PublicKey, map[string]any) {
 }
 
 // musig2AggregateKeys combines the signers' public keys into the single
-// aggregated MuSig2 key.
+// aggregated MuSig2 key. The keys are sorted first unless sortKeys is
+// explicitly false.
 // Calls Go: musig2.AggregateKeys() from btcec/schnorr/musig2.
 func musig2AggregateKeys(_ js.Value, args []js.Value) any {
-	if e := checkArgs(args, 1, "pubKeys"); e != nil {
+	if e := checkArgs(args, 1, "pubKeys[, sortKeys]"); e != nil {
 		return e
 	}
 	keys, e := pubKeysFromArg(args[0])
@@ -54,7 +55,16 @@ func musig2AggregateKeys(_ js.Value, args []js.Value) any {
 		return e
 	}
 
-	agg, _, _, err := musig2.AggregateKeys(keys, true)
+	// BIP-327 sorts the keys before aggregating them, which is what a
+	// caller wants unless the key order is dictated elsewhere: BIP-328
+	// aggregates in the order the participants are listed, so the sorting
+	// can be turned off.
+	sortKeys := true
+	if len(args) > 1 && args[1].Type() == js.TypeBoolean {
+		sortKeys = args[1].Bool()
+	}
+
+	agg, _, _, err := musig2.AggregateKeys(keys, sortKeys)
 	if err != nil {
 		return errfResult("aggregate keys: %s", err)
 	}

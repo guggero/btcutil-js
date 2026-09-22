@@ -7,6 +7,7 @@ import (
 	"strings"
 	"syscall/js"
 
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil/v2/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg/v2"
 )
@@ -31,10 +32,20 @@ func hdNewMaster(_ js.Value, args []js.Value) any {
 }
 
 func hdFromString(_ js.Value, args []js.Value) any {
-	if e := checkArgs(args, 1, "key"); e != nil {
+	if e := checkArgs(args, 1, "key[, strict]"); e != nil {
 		return e
 	}
-	key, err := hdkeychain.NewKeyFromString(args[0].String())
+
+	// Strict parsing additionally enforces the BIP-32 encoding rules: a
+	// depth-zero key must have a zero parent fingerprint and child index,
+	// and the version bytes must be registered with chaincfg and agree
+	// with the key's private/public kind.
+	parse := hdkeychain.NewKeyFromString
+	if len(args) > 1 && args[1].Type() == js.TypeBoolean && args[1].Bool() {
+		parse = hdkeychain.NewKeyFromStringStrict
+	}
+
+	key, err := parse(args[0].String())
 	if err != nil {
 		return errfResult("invalid extended key: %s", err)
 	}
@@ -236,4 +247,34 @@ func hdAddress(_ js.Value, args []js.Value) any {
 		return errfResult("address: %s", err)
 	}
 	return okResult(addr.EncodeAddress())
+}
+
+// hdMuSig2Key wraps an aggregated MuSig2 public key in the synthetic extended
+// key BIP-328 defines for it: the aggregate key with an all-zero chain code,
+// depth, fingerprint and child index, which can then be derived from like any
+// other extended public key.
+// Calls Go: hdkeychain.NewMuSig2Key() from btcutil/hdkeychain.
+func hdMuSig2Key(_ js.Value, args []js.Value) any {
+	if e := checkArgs(args, 1, "aggregateKey[, network]"); e != nil {
+		return e
+	}
+	keyBytes, e := bytesFromArg(args[0])
+	if e != nil {
+		return e
+	}
+	pubKey, err := btcec.ParsePubKey(keyBytes)
+	if err != nil {
+		return errfResult("invalid aggregate key: %s", err)
+	}
+	params, e := getNetwork(optString(args, 1, "mainnet"))
+	if e != nil {
+		return e
+	}
+
+	key, err := hdkeychain.NewMuSig2Key(pubKey, params)
+	if err != nil {
+		return errfResult("musig2 key: %s", err)
+	}
+
+	return okResult(key.String())
 }

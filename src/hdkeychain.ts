@@ -11,10 +11,21 @@ export const hdkeychain = {
   },
 
   /** Parse an extended key string (xprv/xpub/tprv/tpub) and return info.
-   *  Calls Go: hdkeychain.NewKeyFromString() from btcutil/hdkeychain. */
-  async fromString(key: string): Promise<ExtendedKeyInfo> {
+   *
+   *  Parsing is lenient by default: the checksum and key material are
+   *  validated, but any version bytes are accepted. Pass `strict` to also
+   *  enforce the BIP-32 encoding rules — a depth-zero key must have a zero
+   *  parent fingerprint and child index, and the version must be registered
+   *  (the built-in networks plus the SLIP-0132 pairs) and agree with the
+   *  key's private/public kind.
+   *  Calls Go: hdkeychain.NewKeyFromString() / NewKeyFromStringStrict()
+   *  from btcutil/hdkeychain. */
+  async fromString(
+    key: string,
+    strict = false,
+  ): Promise<ExtendedKeyInfo> {
     await init();
-    return unwrap<ExtendedKeyInfo>(g().hdkeychain.fromString(key));
+    return unwrap<ExtendedKeyInfo>(g().hdkeychain.fromString(key, strict));
   },
 
   /** Derive a child key at the given index. Use index >= 0x80000000 for hardened.
@@ -65,5 +76,18 @@ export const hdkeychain = {
   async address(key: string, network: Network = 'mainnet'): Promise<string> {
     await init();
     return unwrap<string>(g().hdkeychain.address(key, network));
+  },
+
+  /** Wrap an aggregated MuSig2 public key in the synthetic extended key
+   *  BIP-328 defines for it: the aggregate key with an all-zero chain code,
+   *  depth, fingerprint and child index. The result can be derived from like
+   *  any other extended public key.
+   *  Calls Go: hdkeychain.NewMuSig2Key() from btcutil/hdkeychain. */
+  async musig2Key(
+    aggregateKey: Bytes,
+    network: Network = 'mainnet',
+  ): Promise<string> {
+    await init();
+    return unwrap<string>(g().hdkeychain.musig2Key(aggregateKey, network));
   },
 };

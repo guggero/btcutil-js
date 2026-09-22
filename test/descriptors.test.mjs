@@ -182,15 +182,19 @@ describe('descriptors: spending plans', () => {
     const plan = d.planAt(0, 0, { lookupEcdsaSig: () => true });
 
     assert.ok(plan instanceof Plan);
-    assert.equal(plan.satisfactionWeight, 78);
+    assert.equal(plan.satisfactionWeight, 114);
     assert.equal(plan.scriptSigSize, 1);
-    assert.equal(plan.witnessSize, 74);
+    assert.equal(plan.witnessSize, 110);
 
     const result = plan.satisfy({
       lookupEcdsaSig: () => testEcdsaSigHex,
     });
-    assert.equal(result.witness.length, 1);
+
+    // A P2WSH spend has to reveal its witness script, so the stack is the
+    // signature followed by the script the descriptor commits to.
+    assert.equal(result.witness.length, 2);
     assert.equal(toHex(result.witness[0]), testEcdsaSigHex);
+    assert.equal(toHex(result.witness[1]), toHex(d.scriptCodeAt(0, 0)));
     assert.equal(result.scriptSig.length, 0);
 
     plan.free();
@@ -216,7 +220,8 @@ describe('descriptors: spending plans', () => {
     const d = await descriptors.create(testTr);
     const plan = d.planAt(0, 0, {
       lookupTapLeafScriptSig: () => 64,
-      relativeLocktime: 65535,
+      txVersion: 2,
+      txInputSequence: 65535,
     });
     assert.equal(plan.satisfactionWeight, 144);
     assert.equal(plan.scriptSigSize, 1);
@@ -241,10 +246,49 @@ describe('descriptors: spending plans', () => {
     d.free();
   });
 
+  it('a throwing callback surfaces as an error, not a dead module',
+    async () => {
+      // syscall/js panics when a JS callback throws. Unrecovered that would
+      // terminate the WASM instance and make every later call fail with
+      // "Go program has already exited", so both callback entry points turn
+      // it into an ordinary error result.
+      const d = await descriptors.create(`wsh(pk(${testXpub1}))`);
+
+      assert.throws(
+        () => d.planAt(0, 0, {
+          lookupEcdsaSig: () => {
+            throw new Error('boom');
+          },
+        }),
+        /callback failed/,
+      );
+
+      const plan = d.planAt(0, 0, { lookupEcdsaSig: () => true });
+      assert.throws(
+        () => plan.satisfy({
+          lookupEcdsaSig: () => {
+            throw new Error('boom');
+          },
+        }),
+        /callback failed/,
+      );
+
+      // The module is still usable afterwards.
+      assert.equal(
+        toHex(plan.satisfy({ lookupEcdsaSig: () => testEcdsaSigHex })
+          .witness[0]),
+        testEcdsaSigHex,
+      );
+
+      plan.free();
+      d.free();
+    });
+
   it('planAt() throws when assets are insufficient', async () => {
     const d = await descriptors.create(testTr);
-    // A taproot leaf-script spend needs a relative locktime of at least
-    // 65535; without one, no non-malleable plan exists.
+    // A taproot leaf-script spend needs a transaction whose version and
+    // input sequence enforce a relative locktime of 65535 (BIP68); without
+    // them, no non-malleable plan exists.
     assert.throws(() => d.planAt(0, 0, {
       lookupTapLeafScriptSig: () => 64,
     }));

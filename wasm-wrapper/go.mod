@@ -32,10 +32,15 @@ require (
 //  - https://github.com/btcsuite/btcd/pull/2521
 //  - https://github.com/btcsuite/btcd/pull/2568
 //  - https://github.com/btcsuite/btcd/pull/2466
+//  - https://github.com/btcsuite/btcd/pull/2198
 replace (
-	github.com/btcsuite/btcd/bip322 => github.com/guggero/btcd/bip322 v0.0.0-20260717100126-52c0c464fad6
-	github.com/btcsuite/btcd/descriptors => github.com/guggero/btcd/descriptors v0.0.0-20260717100126-52c0c464fad6
-	github.com/btcsuite/btcd/psbt/v2 => github.com/guggero/btcd/psbt/v2 v2.0.0-20260717100126-52c0c464fad6
-	github.com/btcsuite/btcd/silentpayments => github.com/guggero/btcd/silentpayments v0.0.0-20260719104849-6acff1fa788a
-	github.com/btcsuite/btcd/txscript/v2 => github.com/guggero/btcd/txscript/v2 v2.0.0-20260717100126-52c0c464fad6
+	github.com/btcsuite/btcd/bip322 => github.com/guggero/btcd/bip322 v0.0.0-20260922112046-ac562f0f6296
+	github.com/btcsuite/btcd/btcec/v2 => github.com/guggero/btcd/btcec/v2 v2.0.0-20260922112046-ac562f0f6296
+	github.com/btcsuite/btcd/btcutil/v2 => github.com/guggero/btcd/btcutil/v2 v2.0.0-20260922112046-ac562f0f6296
+	github.com/btcsuite/btcd/chaincfg/v2 => github.com/guggero/btcd/chaincfg/v2 v2.0.0-20260922112046-ac562f0f6296
+	github.com/btcsuite/btcd/descriptors => github.com/guggero/btcd/descriptors v0.0.0-20260922112046-ac562f0f6296
+	github.com/btcsuite/btcd/psbt/v2 => github.com/guggero/btcd/psbt/v2 v2.0.0-20260922112046-ac562f0f6296
+	github.com/btcsuite/btcd/silentpayments => github.com/guggero/btcd/silentpayments v0.0.0-20260922112046-ac562f0f6296
+	github.com/btcsuite/btcd/txscript/v2 => github.com/guggero/btcd/txscript/v2 v2.0.0-20260922112046-ac562f0f6296
+	github.com/btcsuite/btcd/wire/v2 => github.com/guggero/btcd/wire/v2 v2.0.0-20260922112046-ac562f0f6296
 )

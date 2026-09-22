@@ -17,6 +17,14 @@ export interface MultiSigStats {
   numSigs: number;
 }
 
+/** The outcome of `txscript.verifyScript`. */
+export interface VerifyScriptResult {
+  /** Whether the input is a valid spend of its previous output. */
+  valid: boolean;
+  /** Why the spend was rejected; absent when valid. */
+  error?: string;
+}
+
 export interface PkScriptInfo {
   class: string;
   script: string;
@@ -281,5 +289,18 @@ export const txscript = {
   async rawTxInTaprootSignature(rawTx: Bytes, inputIndex: number, merkleRoot: Bytes, hashType: number, privKey: Bytes, prevOuts: PrevOut[]): Promise<Uint8Array> {
     await init();
     return unwrap<Uint8Array>(g().txscript.rawTxInTaprootSignature(rawTx, inputIndex, merkleRoot, hashType, privKey, prevOuts));
+  },
+  /** Execute the script pair of one input under the standard verification
+   *  flags, reporting whether it is a valid spend of its previous output.
+   *  The transaction must already carry the input's signature script and
+   *  witness; `prevOuts` supplies the previous output of every input, in
+   *  input order (taproot sighashes commit to all of them).
+   *
+   *  An invalid spend is reported as `{valid: false, error}`, not thrown:
+   *  only malformed arguments throw.
+   *  Calls Go: txscript.NewEngine() and Engine.Execute() from btcd/txscript. */
+  async verifyScript(rawTx: Bytes, inputIndex: number, prevOuts: PrevOut[]): Promise<VerifyScriptResult> {
+    await init();
+    return unwrap<VerifyScriptResult>(g().txscript.verifyScript(rawTx, inputIndex, prevOuts));
   },
 };

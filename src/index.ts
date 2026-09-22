@@ -31,6 +31,7 @@ export type {
   TapLeafResult,
   TapScriptTreeResult,
   PrevOut,
+  VerifyScriptResult,
 } from './txscript';
 export { btcec } from './btcec';
 export type {

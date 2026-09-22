@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"syscall/js"
 
@@ -202,11 +203,26 @@ func descriptorMaxWeightToSatisfy(_ js.Value, args []js.Value) any {
 	return okResult(float64(weight))
 }
 
+// recoverCallbackPanic converts a panic raised by a JS callback (syscall/js
+// panics when the JS function throws) into an error result. Without it, the
+// panic unwinds out of the event handler and terminates the whole WASM
+// instance, leaving the module unusable for every later call.
+func recoverCallbackPanic(op string, result *any) {
+	r := recover()
+	if r == nil {
+		return
+	}
+
+	*result = errfResult("%s: callback failed: %v", op, r)
+}
+
 // descriptorPlanAt builds a spending plan at the given multipath and derivation
 // index from the provided assets, registers it, and returns its handle plus the
 // eagerly-computed sizes. The Assets lookups are backed by JS callbacks and are
 // only consulted during planning, not stored on the plan.
-func descriptorPlanAt(_ js.Value, args []js.Value) any {
+func descriptorPlanAt(_ js.Value, args []js.Value) (result any) {
+	defer recoverCallbackPanic("create plan", &result)
+
 	if e := checkArgs(args, 4, "handle, multipathIndex, "+
 		"derivationIndex, assets"); e != nil {
 
@@ -235,7 +251,9 @@ func descriptorPlanAt(_ js.Value, args []js.Value) any {
 
 // planSatisfy completes a registered plan from the JS-callback satisfier,
 // returning the final witness stack and scriptSig.
-func planSatisfy(_ js.Value, args []js.Value) any {
+func planSatisfy(_ js.Value, args []js.Value) (result any) {
+	defer recoverCallbackPanic("satisfy plan", &result)
+
 	if e := checkArgs(args, 2, "handle, satisfier"); e != nil {
 		return e
 	}
@@ -244,20 +262,20 @@ func planSatisfy(_ js.Value, args []js.Value) any {
 		return e
 	}
 
-	result, err := plan.Satisfy(satisfierFromJS(args[1]))
+	satisfied, err := plan.Satisfy(satisfierFromJS(args[1]))
 	if err != nil {
 		return errfResult("satisfy plan: %s", err)
 	}
 
 	// Hand the witness stack to JS as an array of Uint8Arrays.
-	witness := make([]any, len(result.Witness))
-	for i, w := range result.Witness {
+	witness := make([]any, len(satisfied.Witness))
+	for i, w := range satisfied.Witness {
 		witness[i] = bytesToJS(w)
 	}
 
 	return okResult(map[string]any{
 		"witness":   witness,
-		"scriptSig": bytesToJS(result.ScriptSig),
+		"scriptSig": bytesToJS(satisfied.ScriptSig),
 	})
 }
 
@@ -302,14 +320,32 @@ func assetsFromJS(obj js.Value) descriptors.Assets {
 		}
 	}
 
-	// The optional locktime bounds are plain numbers when present.
-	if v := obj.Get("relativeLocktime"); v.Type() == js.TypeNumber {
-		rl := uint32(v.Int())
-		assets.RelativeLocktime = &rl
+	// The hash a preimage is looked up by is handed to JS as a hex string,
+	// like the other lookup keys, so a JS caller can use it as a map key
+	// directly.
+	if fn, ok := jsFuncArg(obj, "lookupPreimage"); ok {
+		assets.LookupPreimage = func(hashFunc string,
+			hash []byte) bool {
+
+			return fn.Invoke(
+				hashFunc, hex.EncodeToString(hash),
+			).Truthy()
+		}
 	}
-	if v := obj.Get("absoluteLocktime"); v.Type() == js.TypeNumber {
-		al := uint32(v.Int())
-		assets.AbsoluteLocktime = &al
+
+	// The optional transaction fields that bound the locktimes a plan may
+	// rely on are plain numbers when present.
+	if v := obj.Get("txVersion"); v.Type() == js.TypeNumber {
+		version := int32(v.Int())
+		assets.TxVersion = &version
+	}
+	if v := obj.Get("txLockTime"); v.Type() == js.TypeNumber {
+		lockTime := uint32(v.Int())
+		assets.TxLockTime = &lockTime
+	}
+	if v := obj.Get("txInputSequence"); v.Type() == js.TypeNumber {
+		sequence := uint32(v.Int())
+		assets.TxInputSequence = &sequence
 	}
 
 	return assets
@@ -340,6 +376,16 @@ func satisfierFromJS(obj js.Value) *descriptors.Satisfier {
 			bool) {
 
 			return jsBytesResult(fn.Invoke(pk, lh))
+		}
+	}
+
+	if fn, ok := jsFuncArg(obj, "lookupPreimage"); ok {
+		satisfier.LookupPreimage = func(hashFunc string,
+			hash []byte) ([]byte, bool) {
+
+			return jsBytesResult(fn.Invoke(
+				hashFunc, hex.EncodeToString(hash),
+			))
 		}
 	}
 

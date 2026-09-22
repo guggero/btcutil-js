@@ -689,6 +689,70 @@ func txscriptCalcTaprootSignatureHash(_ js.Value, args []js.Value) any {
 }
 
 // ---------------------------------------------------------------------------
+// script execution
+// ---------------------------------------------------------------------------
+
+// txscriptVerifyScript executes the script pair of one input of a transaction
+// under the standard verification flags, reporting whether the input is a
+// valid spend of its previous output. The transaction must already carry the
+// input's signature script and witness; prevOuts supplies the previous output
+// of every input (in input order), which taproot sighashes commit to.
+//
+// A rejection is a result, not an error: both a failure to set up the engine
+// and a failure to execute mean the spend is invalid, and both are reported as
+// {valid: false, error: "..."}. Only malformed arguments produce an error
+// result.
+// Calls Go: txscript.NewEngine() and Engine.Execute() from txscript.
+func txscriptVerifyScript(_ js.Value, args []js.Value) any {
+	if e := checkArgs(args, 3, "hexRawTx, idx, prevOuts[]"); e != nil {
+		return e
+	}
+	msgTx, e := deserializeTxArg(args[0])
+	if e != nil {
+		return e
+	}
+	idx := args[1].Int()
+	if idx < 0 || idx >= len(msgTx.TxIn) {
+		return errfResult("input index %d out of range", idx)
+	}
+
+	if args[2].Length() != len(msgTx.TxIn) {
+		return errfResult("expected %d previous outputs, got %d",
+			len(msgTx.TxIn), args[2].Length())
+	}
+	fetcher, e := buildPrevOutFetcher(msgTx, args[2])
+	if e != nil {
+		return e
+	}
+
+	prevOut := fetcher.FetchPrevOutput(msgTx.TxIn[idx].PreviousOutPoint)
+	if prevOut == nil {
+		return errfResult("missing previous output of input %d", idx)
+	}
+
+	engine, err := txscript.NewEngine(
+		prevOut.PkScript, msgTx, idx, txscript.StandardVerifyFlags,
+		nil, txscript.NewTxSigHashes(msgTx, fetcher), prevOut.Value,
+		fetcher,
+	)
+	if err != nil {
+		return okResult(map[string]any{
+			"valid": false,
+			"error": err.Error(),
+		})
+	}
+
+	if err := engine.Execute(); err != nil {
+		return okResult(map[string]any{
+			"valid": false,
+			"error": err.Error(),
+		})
+	}
+
+	return okResult(map[string]any{"valid": true})
+}
+
+// ---------------------------------------------------------------------------
 // signing helpers
 // ---------------------------------------------------------------------------
 
