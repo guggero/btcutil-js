@@ -294,6 +294,65 @@ func btcecSchnorrVerify(_ js.Value, args []js.Value) any {
 	return okResult(sig.Verify(hashBytes, pubKey))
 }
 
+// btcecSchnorrSignMessage creates a BIP 340 signature over a message of any
+// length, which is what OP_CHECKSIGFROMSTACK verifies. The message is used as
+// is, it isn't hashed first. A message of 32 bytes is signed exactly as
+// schnorrSign does.
+// Calls Go: schnorr.SignMessage() from btcec/schnorr.
+func btcecSchnorrSignMessage(_ js.Value, args []js.Value) any {
+	if e := checkArgs(args, 2, "hexPrivKey, hexMessage"); e != nil {
+		return e
+	}
+	privBytes, e := bytesFromArg(args[0])
+	if e != nil {
+		return e
+	}
+	msgBytes, e := bytesFromArg(args[1])
+	if e != nil {
+		return e
+	}
+	privKey, _ := btcec.PrivKeyFromBytes(privBytes)
+	sig, err := btcschnorr.SignMessage(privKey, msgBytes)
+	if err != nil {
+		return errfResult("schnorrSignMessage: %s", err)
+	}
+	return okResult(bytesToJS(sig.Serialize()))
+}
+
+// btcecSchnorrVerifyMessage verifies a BIP 340 signature over a message of any
+// length, which is what OP_CHECKSIGFROMSTACK does. The message is used as is,
+// it isn't hashed first.
+// Calls Go: schnorr.Signature.VerifyMessage() from btcec/schnorr.
+func btcecSchnorrVerifyMessage(_ js.Value, args []js.Value) any {
+	if e := checkArgs(args, 3, "hexPubKey, hexMessage, hexSignature"); e != nil {
+		return e
+	}
+	pubBytes, e := bytesFromArg(args[0])
+	if e != nil {
+		return e
+	}
+	msgBytes, e := bytesFromArg(args[1])
+	if e != nil {
+		return e
+	}
+	sigBytes, e := bytesFromArg(args[2])
+	if e != nil {
+		return e
+	}
+	pubKey, err := btcschnorr.ParsePubKey(pubBytes)
+	if err != nil {
+		pubKey, err = btcec.ParsePubKey(pubBytes)
+		if err != nil {
+			return errfResult("parsePubKey: %s", err)
+		}
+	}
+	sig, err := btcschnorr.ParseSignature(sigBytes)
+	if err != nil {
+		return errfResult("parseSignature: %s", err)
+	}
+	return okResult(sig.VerifyMessage(msgBytes, pubKey))
+}
+
 func btcecSchnorrParsePubKey(_ js.Value, args []js.Value) any {
 	if e := checkArgs(args, 1, "hexXOnlyPubKey"); e != nil {
 		return e

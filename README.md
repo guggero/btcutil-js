@@ -18,7 +18,7 @@ raw **transaction** and full **block** utilities.
 
 ## Prerequisites
 
-- **Go >= 1.26.1** — Install from <https://go.dev/dl/>
+- **Go >= 1.26.10** — Install from <https://go.dev/dl/>
 - **Node.js >= 18** — Install from <https://nodejs.org/>
 
 ## Building
@@ -299,7 +299,6 @@ BIP-322 generic signed message construction and verification.
 | `buildToSignPacketSimple(message, pkScript)` | `bip322.BuildToSignPacketSimple()` | Build the to-sign PSBT for the **simple** variant (native segwit pkScripts). Returns base64. |
 | `buildToSignPacketFull(message, pkScript, txVersion, lockTime, sequence)` | `bip322.BuildToSignPacketFull()` | Build the to-sign PSBT for the **full** variant (legacy / nested-segwit pkScripts). Returns base64. |
 | `serializeTxWitness(witness)` | `bip322.SerializeTxWitness()` | Serialise a witness stack to the wire-encoded blob used as the simple-variant signature payload. |
-| `parseTxWitness(rawWitness)` | `bip322.ParseTxWitness()` | Inverse of `serializeTxWitness`. Returns the decoded witness stack. |
 
 Supports **P2WPKH**, **P2SH-P2WPKH**, **P2TR** (Taproot), and **multisig**
 address types.
@@ -423,6 +422,7 @@ const rawTx = await psbt.extract(finalized);
 |--------|-------------|-------------|
 | `encodeExtendedKey(xpubStr)` | `psbt.EncodeExtendedKey()` | Convert a base58 xpub/xprv string to the 78-byte PSBT-wire form (the checksum-less base58 decoding) used in `PSBT_GLOBAL_XPUB` keys. |
 | `decodeExtendedKey(bytes)` | `psbt.DecodeExtendedKey()` | Inverse of `encodeExtendedKey` — convert the 78-byte PSBT-wire form back to a base58 xpub/xprv string. |
+| `parseTxWitness(rawWitness)` | `psbt.ParseTxWitness()` | Parse the serialized witness of an input (e.g. a final script witness, or the output of `bip322.serializeTxWitness`) into its stack items. |
 
 ---
 
@@ -477,6 +477,7 @@ Bitcoin transaction script analysis, creation, taproot, and signing.
 | Method | Go function | Description |
 |--------|-------------|-------------|
 | `disasmString(script)` | `txscript.DisasmString()` | Disassemble script to human-readable opcodes. |
+| `assembleScript(asm)` | `txscript.ScriptBuilder` | Inverse of `disasmString`: assemble whitespace separated tokens into a script. A token is an op code name (`OP_DUP`, `OP_TEMPLATEHASH`, ...), a number from `-1` to `16`, or hex data, which becomes the smallest push of those bytes. Prefix data with `0x` if it would otherwise read as a number. |
 | `getScriptClass(script)` | `txscript.GetScriptClass()` | Get the standard script class name. |
 | `extractWitnessProgramInfo(script)` | `txscript.ExtractWitnessProgramInfo()` | Extract witness version and program. Returns `{ version, program }`. |
 | `extractPkScriptAddrs(script, network?)` | `txscript.ExtractPkScriptAddrs()` | Extract addresses and required sigs. Returns `{ scriptClass, addresses[], reqSigs }`. |
@@ -512,6 +513,9 @@ Bitcoin transaction script analysis, creation, taproot, and signing.
 | `calcSignatureHash(script, hashType, rawTx, idx)` | `txscript.CalcSignatureHash()` | Legacy (pre-segwit) sighash. |
 | `calcWitnessSigHash(script, hashType, rawTx, idx, amount)` | `txscript.CalcWitnessSigHash()` | BIP-143 witness v0 sighash. |
 | `calcTaprootSignatureHash(hashType, rawTx, idx, prevOuts[])` | `txscript.CalcTaprootSignatureHash()` | BIP-341 taproot sighash. |
+| `calcTapscriptSignatureHash(hashType, rawTx, idx, prevOuts[], leafScript, annex?)` | `txscript.CalcTapscriptSignaturehash()` | BIP-342 sighash that an `OP_CHECKSIG` in the given tapscript leaf checks. |
+| `calcTemplateHash(rawTx, idx, annex?)` | `txscript.CalcTemplateHash()` | BIP-446 template hash of an input: what `OP_TEMPLATEHASH` pushes. `annex` is the full annex including the `0x50` tag. |
+| `templateHashPreimage(rawTx, idx, annex?)` | `txscript.CalcTemplateHash()` | The template hash plus the fields of the hashed message: `{ hash, tag, message, version, lockTime, shaSequences, shaOutputs, annexPresent, inputIndex, shaAnnex? }`. |
 
 **Signing:**
 
@@ -521,7 +525,43 @@ Bitcoin transaction script analysis, creation, taproot, and signing.
 | `rawTxInWitnessSignature(rawTx, idx, amount, subScript, hashType, privKey)` | `txscript.RawTxInWitnessSignature()` | Witness v0 input signature. |
 | `witnessSignature(rawTx, idx, amount, subScript, hashType, privKey, compress)` | `txscript.WitnessSignature()` | Complete P2WPKH witness stack (sig + pubkey). |
 | `rawTxInTaprootSignature(rawTx, idx, merkleRoot, hashType, privKey, prevOuts[])` | `txscript.RawTxInTaprootSignature()` | Taproot key-path signature. |
-| `verifyScript(rawTx, idx, prevOuts[])` | `txscript.NewEngine()` + `Engine.Execute()` | Execute one input's script pair under the standard verification flags. The transaction must already carry the input's scriptSig and witness, and `prevOuts` must cover every input (taproot sighashes commit to all of them). Returns `{ valid, error? }`; an invalid spend is a result, not a throw. |
+
+**Script execution:**
+
+| Method | Go function | Description |
+|--------|-------------|-------------|
+| `verifyScript(rawTx, idx, prevOuts[], flags?)` | `txscript.NewEngine()` + `Engine.Execute()` | Execute one input's script pair. The transaction must already carry the input's scriptSig and witness, and `prevOuts` must cover every input (taproot sighashes commit to all of them). `flags` is an array of script flag names; without it the standard verification flags are used. Returns `{ valid, error?, errorCode? }`; an invalid spend is a result, not a throw. |
+| `traceScript(rawTx, idx, prevOuts[], flags?)` | `txscript.NewDebugEngine()` + `Engine.Execute()` | Like `verifyScript`, but also records the engine state before every op code. Returns `{ valid, error?, errorCode?, opSuccess, scripts, steps }`, where `scripts[scriptIndex][opcodeIndex]` is the disassembly of the executed scripts and each step is `{ scriptIndex, opcodeIndex, opcode?, stack, altStack, sigOpsBudget? }`. `opSuccess` tells whether a tapscript was skipped because of an OP_SUCCESS op code, `sigOpsBudget` is what is left of the BIP-342 signature operation budget of a taproot input. |
+| `scriptFlagNames()` | — | Names of all script verification flags, as Bitcoin Core names them (`P2SH`, `WITNESS`, `TAPROOT`, `TEMPLATEHASH`, ...). |
+| `standardScriptFlags()` | `txscript.StandardVerifyFlags` | Names of the standard verification flags. |
+
+The three tapscript op codes of [BIP 448](https://github.com/bitcoin/bips/blob/master/bip-0448.md)
+(`OP_TEMPLATEHASH`, `OP_CHECKSIGFROMSTACK`, `OP_INTERNALKEY`) each have a flag
+that activates them and a `DISCOURAGE_*` flag that rejects them. The standard
+flags set both, which is the mempool policy of a node on which the op codes
+are not active: a script using them is rejected. Pick the flags to see the
+other two states:
+
+```typescript
+const upgrades = ['TEMPLATEHASH', 'CHECKSIGFROMSTACK', 'INTERNALKEY'];
+const standard = await txscript.standardScriptFlags();
+
+// Active: the op codes are executed.
+const active = standard.filter(
+  (f) => !upgrades.some((u) => f === `DISCOURAGE_${u}`),
+);
+
+// Not defined yet: the op codes are OP_SUCCESS, any witness is valid.
+const inactive = active.filter(
+  (f) => !upgrades.includes(f) && f !== 'DISCOURAGE_OP_SUCCESS',
+);
+
+const script = await txscript.assembleScript(
+  'OP_TEMPLATEHASH OP_INTERNALKEY OP_CHECKSIGFROMSTACK',
+);
+// ... build the taproot output and the spending transaction, then:
+const trace = await txscript.traceScript(rawTx, 0, prevOuts, active);
+```
 
 Hash type constants: `SigHashAll = 1`, `SigHashNone = 2`, `SigHashSingle = 3`, `SigHashAnyOneCanPay = 0x80`, `SigHashDefault = 0` (taproot).
 
@@ -566,6 +606,8 @@ secp256k1 elliptic curve cryptography: key management, ECDSA, Schnorr, ECDH.
 |--------|-------------|-------------|
 | `schnorrSign(privKey, hash)` | `schnorr.Sign()` | Sign a 32-byte hash. Returns 64-byte signature. |
 | `schnorrVerify(pubKey, hash, sig)` | `Signature.Verify()` | Verify a Schnorr signature. |
+| `schnorrSignMessage(privKey, message)` | `schnorr.SignMessage()` | Sign a message of any length, as needed for `OP_CHECKSIGFROMSTACK`. The message is not hashed first; a 32-byte message is signed exactly as `schnorrSign` does. |
+| `schnorrVerifyMessage(pubKey, message, sig)` | `Signature.VerifyMessage()` | Verify a Schnorr signature over a message of any length, as `OP_CHECKSIGFROMSTACK` does. The message is not hashed first. |
 | `schnorrParsePubKey(xOnlyPubKey)` | `schnorr.ParsePubKey()` | Parse a 32-byte x-only key. Returns 33-byte compressed. |
 | `schnorrSerializePubKey(pubKey)` | `schnorr.SerializePubKey()` | Serialize to 32-byte x-only format. |
 | `schnorrParseSignature(sig)` | `schnorr.ParseSignature()` | Parse a 64-byte Schnorr signature. |

@@ -142,16 +142,4 @@ export const bip322 = {
       g().bip322.signP2PKH(message, privateKey),
     );
   },
-
-  /** Parse serialized witness bytes back into a witness stack.
-   *  Calls Go: bip322.ParseTxWitness() from btcutil/bip322.
-   *
-   *  @param rawWitness - Serialized witness data (hex string or Uint8Array).
-   *  @returns Array of witness stack items (Uint8Array[]). */
-  async parseTxWitness(rawWitness: Bytes): Promise<Uint8Array[]> {
-    await init();
-    return unwrap<Uint8Array[]>(
-      g().bip322.parseTxWitness(rawWitness),
-    );
-  },
 };

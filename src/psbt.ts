@@ -334,4 +334,17 @@ export const psbt = {
     await init();
     return unwrap<string>(g().psbt.inPlaceSort(base64Psbt));
   },
+
+  // -- witness --
+
+  /** Parse the serialized witness of a transaction input, as found in the
+   *  final script witness field of a PSBT input, into its stack items.
+   *  Calls Go: psbt.ParseTxWitness() from btcd/psbt.
+   *
+   *  @param rawWitness - Serialized witness data (hex string or Uint8Array).
+   *  @returns Array of witness stack items (Uint8Array[]). */
+  async parseTxWitness(rawWitness: Bytes): Promise<Uint8Array[]> {
+    await init();
+    return unwrap<Uint8Array[]>(g().psbt.parseTxWitness(rawWitness));
+  },
 };

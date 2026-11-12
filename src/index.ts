@@ -32,6 +32,10 @@ export type {
   TapScriptTreeResult,
   PrevOut,
   VerifyScriptResult,
+  ScriptFlag,
+  ScriptStep,
+  ScriptTrace,
+  TemplateHashPreimage,
 } from './txscript';
 export { btcec } from './btcec';
 export type {

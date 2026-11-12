@@ -1141,3 +1141,28 @@ func psbtAllUnknowns(_ js.Value, args []js.Value) any {
 	}
 	return okResult(entries)
 }
+
+// psbtParseTxWitness parses the serialized witness of a transaction input, as
+// found in the final script witness field of a PSBT input, into its stack
+// items.
+// Calls Go: psbt.ParseTxWitness() from btcd/psbt.
+// Args: rawWitness (Bytes)
+// Returns: array of Uint8Array (witness stack items)
+func psbtParseTxWitness(_ js.Value, args []js.Value) any {
+	if e := checkArgs(args, 1, "rawWitness"); e != nil {
+		return e
+	}
+	raw, e := bytesFromArg(args[0])
+	if e != nil {
+		return e
+	}
+	witness, err := btcpsbt.ParseTxWitness(raw)
+	if err != nil {
+		return errfResult("parseTxWitness: %s", err)
+	}
+	items := make([]any, len(witness))
+	for i, w := range witness {
+		items[i] = bytesToJS(w)
+	}
+	return okResult(items)
+}

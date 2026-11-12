@@ -138,6 +138,23 @@ export const btcec = {
     await init();
     return unwrap<boolean>(g().btcec.schnorrVerify(pubKey, hash, signature));
   },
+  /** Sign a message of any length with Schnorr (BIP-340), as needed for
+   *  OP_CHECKSIGFROMSTACK (BIP 348). The message is used as is, it is not
+   *  hashed first. A 32-byte message is signed exactly as `schnorrSign` does.
+   *  Returns 64-byte signature.
+   *  Calls Go: schnorr.SignMessage() from btcd/btcec/v2/schnorr. */
+  async schnorrSignMessage(privKey: Bytes, message: Bytes): Promise<Uint8Array> {
+    await init();
+    return unwrap<Uint8Array>(g().btcec.schnorrSignMessage(privKey, message));
+  },
+  /** Verify a BIP-340 Schnorr signature over a message of any length, as
+   *  OP_CHECKSIGFROMSTACK (BIP 348) does. The message is used as is, it is
+   *  not hashed first.
+   *  Calls Go: schnorr.Signature.VerifyMessage() from btcd/btcec/v2/schnorr. */
+  async schnorrVerifyMessage(pubKey: Bytes, message: Bytes, signature: Bytes): Promise<boolean> {
+    await init();
+    return unwrap<boolean>(g().btcec.schnorrVerifyMessage(pubKey, message, signature));
+  },
   /** Parse a 32-byte x-only public key (BIP-340). Returns 33-byte compressed key.
    *  Calls Go: schnorr.ParsePubKey() from btcd/btcec/v2/schnorr. */
   async schnorrParsePubKey(xOnlyPubKey: Bytes): Promise<Uint8Array> {

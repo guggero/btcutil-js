@@ -118,12 +118,13 @@ describe('descriptors: methods', () => {
     d.free();
   });
 
-  it('maxWeightToSatisfy() throws for an unsatisfiable descriptor',
-    async () => {
-      const d = await descriptors.create('wsh(0)');
-      assert.throws(() => d.maxWeightToSatisfy());
-      d.free();
-    });
+  it('create() rejects an unsatisfiable descriptor', async () => {
+    // A miniscript without a satisfaction isn't sane, which the parser now
+    // checks, so there is no descriptor left to estimate a weight for.
+    await assert.rejects(
+      descriptors.create('wsh(0)'), /miniscript is not sane/,
+    );
+  });
 
   it('lift() produces the semantic policy tree', async () => {
     const d = await descriptors.create(testTr);

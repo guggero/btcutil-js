@@ -183,25 +183,3 @@ func bip322SignNestedP2WPKH(_ js.Value, args []js.Value) any {
 func bip322SignP2PKH(_ js.Value, args []js.Value) any {
 	return signHelper(args, bip322.SignP2PKH)
 }
-
-// bip322ParseTxWitness wraps bip322.ParseTxWitness.
-// Args: rawWitness (Bytes)
-// Returns: array of Uint8Array (witness stack items)
-func bip322ParseTxWitness(_ js.Value, args []js.Value) any {
-	if e := checkArgs(args, 1, "rawWitness"); e != nil {
-		return e
-	}
-	raw, e := bytesFromArg(args[0])
-	if e != nil {
-		return e
-	}
-	witness, err := bip322.ParseTxWitness(raw)
-	if err != nil {
-		return errfResult("parseTxWitness: %s", err)
-	}
-	items := make([]any, len(witness))
-	for i, w := range witness {
-		items[i] = bytesToJS(w)
-	}
-	return okResult(items)
-}

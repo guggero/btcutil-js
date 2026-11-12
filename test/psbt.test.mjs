@@ -1,7 +1,9 @@
 import './setup.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { psbt, btcec, chainhash, txscript, address } from '../dist/index.js';
+import {
+  psbt, bip322, btcec, chainhash, txscript, address,
+} from '../dist/index.js';
 import { toHex } from './util.mjs';
 import { Buffer } from 'node:buffer';
 
@@ -527,5 +529,34 @@ describe('psbt: extended-key helpers', () => {
     assert.equal(redecoded.xpubs[0].extendedKey, xpubStr);
     assert.equal(redecoded.xpubs[0].masterKeyFingerprint, 'deadbeef');
     assert.deepEqual(redecoded.xpubs[0].path, []);
+  });
+});
+
+describe('psbt: parseTxWitness', () => {
+  it('parses a serialized witness into its stack items', async () => {
+    // Two items: a one byte and a two byte one.
+    const items = await psbt.parseTxWitness('0201aa02bbcc');
+    assert.deepEqual(items.map(toHex), ['aa', 'bbcc']);
+
+    assert.deepEqual(await psbt.parseTxWitness('00'), []);
+    assert.deepEqual(
+      (await psbt.parseTxWitness(Buffer.from('0100', 'hex'))).map(toHex),
+      [''],
+    );
+  });
+
+  it('is the inverse of bip322.serializeTxWitness', async () => {
+    const stack = ['', 'aa', 'bb'.repeat(64), 'cc'.repeat(300)];
+    const raw = await bip322.serializeTxWitness(stack);
+    assert.deepEqual((await psbt.parseTxWitness(raw)).map(toHex), stack);
+  });
+
+  it('rejects a malformed witness', async () => {
+    await assert.rejects(psbt.parseTxWitness('0205aa'), /parseTxWitness/);
+    await assert.rejects(psbt.parseTxWitness('zz'), /invalid hex/);
+  });
+
+  it('is no longer part of the bip322 namespace', () => {
+    assert.equal(bip322.parseTxWitness, undefined);
   });
 });
